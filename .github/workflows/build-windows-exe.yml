@@ -1,0 +1,58 @@
+# =========================================================
+# Sooqify Image Updater - Windows EXE Build
+# Arabic: يبني ملف exe تلقائياً على سيرفرات ويندوز حقيقية تابعة لـ GitHub عند كل
+# رفعة على main، ويرفعه كـ Release جاهز للتنزيل - بدون أي بناء محلي على أي جهاز.
+# English: Automatically builds the exe on real GitHub-hosted Windows runners on every
+# push to main, and publishes it as a downloadable Release - no local build needed.
+# =========================================================
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Download Chromium into bundle folder
+        # نثبّت كرومّيوم بمجلد محلي داخل المشروع (ms-browsers) بدل الكاش الافتراضي،
+        # عشان build/app.spec يلقاه وينسخه داخل الـ exe النهائي - فيصير التطبيق
+        # يعمل على أي جهاز ويندوز بدون أي تثبيت إضافي من المستخدم.
+        run: playwright install chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}\ms-browsers
+
+      - name: Build EXE
+        run: pyinstaller build/app.spec
+
+      - name: Zip build output
+        run: Compress-Archive -Path dist/SooqifyImageUpdater/* -DestinationPath dist/SooqifyImageUpdater-windows.zip
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sooqify-image-updater-windows
+          path: dist/SooqifyImageUpdater-windows.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/SooqifyImageUpdater-windows.zip

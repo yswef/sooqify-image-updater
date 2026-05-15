@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Sooqify Image Updater v2.0</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <div id="app">
+
+    <!-- شاشة الإعداد الأول -->
+    <section id="setupScreen" class="screen hidden">
+      <div class="setup-card">
+        <div class="brand-block">
+          <div class="brand-mark">SIU</div>
+          <h1>Sooqify Image Updater <span style="font-size: 0.5em; opacity: 0.7;">v2.0</span></h1>
+          <p class="dev-credit">تطوير: يوسف الحمزي</p>
+        </div>
+
+        <div class="field-group">
+          <label>مجلد الصور الرئيسي</label>
+          <div class="input-with-button">
+            <input id="setupRootFolder" type="text" readonly placeholder="اختر المجلد...">
+            <button class="btn btn-secondary" id="pickFolderBtn">اختيار</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>المتصفح المستخدم لتسجيل الدخول</label>
+          <select id="setupBrowser">
+            <option value="chrome">Chrome</option>
+            <option value="brave">Brave</option>
+            <option value="edge">Edge</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label>اسمك</label>
+          <input id="setupOperatorName" type="text" placeholder="مثال: مها">
+          <p class="hint">دخول اسم "yousef" يفتح وضع المطوّر تلقائياً.</p>
+        </div>
+
+        <div class="field-group two-col">
+          <div>
+            <label>رابط المزامنة</label>
+            <input id="setupSyncUrl" type="text" placeholder="https://...">
+          </div>
+          <div>
+            <label>مفتاح المزامنة</label>
+            <input id="setupSyncToken" type="password" placeholder="المفتاح السري">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="setupHeadless">
+            تشغيل بدون واجهة متصفح مرئية (Headless)
+          </label>
+          <p class="hint">فعّلها لو تشغّل التطبيق على سيرفر لينكس بدون شاشة عرض. اتركها مطفية لو عندك سطح مكتب عادي وتبي
+            تشوف المتصفح وهو شغال.</p>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="completeSetupBtn">ابدأ الاستخدام</button>
+      </div>
+    </section>
+
+    <!-- الشاشة الرئيسية -->
+    <section id="mainScreen" class="screen hidden">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-mark small">SIU</span>
+          <span class="brand-title">Sooqify Image Updater v2.0</span>
+          <span id="devBadge" class="dev-badge hidden">وضع المطوّر</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost" id="rescanBtn">إعادة فحص</button>
+          <button class="btn btn-primary" id="loginBtn" title="سجّل دخولك لسوقيفاي مرة وحدة قبل أول رفع فعلي">تسجيل
+            الدخول</button>
+          <button class="btn btn-ghost" id="settingsBtn">الإعدادات</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <label class="checkbox-inline">
+              <input type="checkbox" id="selectAllCheck">
+              تحديد الكل
+            </label>
+            <span id="selectionSummary" class="muted">0 من 0 منتج محدَّد</span>
+          </div>
+          <div class="toolbar-right">
+            <label class="checkbox-inline">
+              <input type="checkbox" id="dryRunCheck">
+              وضع المراجعة (يفتح المتصفح وتعتمد بنفسك)
+            </label>
+            <button class="btn btn-secondary" id="stopRunBtn" disabled>إيقاف</button>
+            <button class="btn btn-primary" id="startRunBtn">ابدأ</button>
+          </div>
+        </div>
+
+        <div class="progress-wrap hidden" id="progressWrap">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <span id="progressLabel" class="muted">0 / 0</span>
+        </div>
+
+        <div id="productList" class="product-list"></div>
+
+        <div id="emptyState" class="empty-state hidden">
+          <p>ما فيه منتجات بهذا المجلد بعد.</p>
+          <button class="btn btn-secondary" id="emptyRescanBtn">إعادة فحص المجلد</button>
+        </div>
+      </main>
+
+      <footer class="log-panel">
+        <div class="log-header">سجل العمليات</div>
+        <div id="logOutput" class="log-output"></div>
+      </footer>
+    </section>
+
+    <!-- نافذة الإعدادات المنبثقة (Overlay Modal) -->
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3>إعدادات التطبيق</h3>
+          <button class="btn-close" id="closeSettingsBtn">&times;</button>
+        </header>
+        <div class="modal-body">
+          <div class="settings-grid">
+            <!-- المجلد الرئيسي -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>مجلد الصور الافتراضي (Root Folder)</label>
+              <div class="input-group">
+                <input type="text" id="settingsRootFolder" readonly>
+                <button class="btn btn-secondary btn-sm" id="changeFolderBtn">تغيير المجلد</button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <!-- اسم المشغل -->
+              <div class="form-group">
+                <label for="settingsOperatorName">اسم المشغل / الموظف</label>
+                <input type="text" id="settingsOperatorName">
+              </div>
+
+              <!-- المتصفح -->
+              <div class="form-group">
+                <label for="settingsBrowser">المتصفح للأتمتة</label>
+                <select id="settingsBrowser">
+                  <option value="chrome">Google Chrome</option>
+                  <option value="brave">Brave Browser</option>
+                  <option value="edge">Microsoft Edge</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <!-- حد المعالجة -->
+              <div class="form-group">
+                <label for="settingsBatchLimit">الحد الأقصى للدفعة (0 = بلا حد)</label>
+                <input type="number" id="settingsBatchLimit" min="0">
+              </div>
+              <!-- صوت عند الاكتمال -->
+              <div class="form-group checkbox-group">
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="settingsSoundOnComplete">
+                  تنبيه صوتي عند الاكتمال
+                </label>
+              </div>
+            </div>
+
+            <!-- خيار نقل المجلدات -->
+            <div class="form-group checkbox-group" style="grid-column: 1 / -1; margin-bottom: 8px;">
+              <label class="checkbox-inline">
+                <input type="checkbox" id="settingsMoveFolders">
+                أرشفة المجلدات تلقائياً (نقل المجلد إلى فروع ناجح/فاشل بجانب المجلد الرئيسي)
+              </label>
+            </div>
+
+            <!-- تفاصيل خادم المزامنة -->
+            <div class="form-section-title">إعدادات خادم المزامنة (لوحة التحكم AlphaCode)</div>
+
+            <div class="form-group checkbox-group" style="grid-column: 1 / -1; margin-bottom: 8px;">
+              <label class="checkbox-inline">
+                <input type="checkbox" id="settingsSyncEnabled">
+                تفعيل مزامنة التقرير مع السيرفر
+              </label>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="settingsSyncUrl">رابط السيرفر (URL)</label>
+                <input type="text" id="settingsSyncUrl" placeholder="https://example.com/sync.php">
+              </div>
+              <div class="form-group">
+                <label for="settingsSyncToken">رمز التفعيل الموحد (Sync Token)</label>
+                <input type="password" id="settingsSyncToken" placeholder="أدخل التوكن للربط">
+              </div>
+            </div>
+
+            <!-- معلومات المطور والدعم الفني -->
+            <div class="form-section-title">المطور والدعم الفني</div>
+            <div class="developer-card" style="grid-column: 1 / -1;">
+              <div class="dev-avatar">🖥️</div>
+              <div class="dev-info">
+                <h5>المهندس: يوسف الحمزي (Yousef Alhamzy)</h5>
+                <p class="muted">تصميم وتطوير حلول برمجة الأتمتة المخصصة</p>
+                <div class="dev-links">
+                  <a href="https://engyusef.alpha-code.net/" target="_blank" class="dev-link">
+                    <span class="icon">🔗</span> المعرض الشخصي
+                  </a>
+                  <a href="https://wa.me/967784609423" target="_blank" class="dev-link whatsapp">
+                    <span class="icon">💬</span> واتساب
+                  </a>
+                  <a href="tel:+967784609423" class="dev-link phone">
+                    <span class="icon">📞</span> اتصال مباشر
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button class="btn btn-ghost" id="cancelSettingsBtn">إلغاء</button>
+          <button class="btn btn-primary" id="saveSettingsBtn">حفظ الإعدادات</button>
+        </footer>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>

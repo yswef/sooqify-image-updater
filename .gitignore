@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+build/output/
+dist/
+*.spec.bak
+.venv/
+venv/
+*.log
+probe_sessions/
+app_config.json
+sync_config.json
+dev_tools/
+my protofoleo/
+diagnostic_logs/
+app/diagnostic_logs/
