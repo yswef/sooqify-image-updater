@@ -1,1 +1,199 @@
-<- Playwright & PyWebView Sooqify Image Updater UI - TODO: سيُلصق الكود هنا لاحقاً / Code will be pasted here later -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Sooqify Image Updater</title>
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- First-run setup screen -->
+  <section id="setupScreen" class="screen hidden">
+    <div class="setup-card">
+      <div class="brand-block">
+        <div class="brand-mark">SIU</div>
+        <h1>Sooqify Image Updater</h1>
+        <p class="dev-credit">تطوير: يوسف الحمزي</p>
+      </div>
+
+      <div class="field-group">
+        <label>مجلد الصور الرئيسي</label>
+        <div class="input-with-button">
+          <input id="setupRootFolder" type="text" readonly placeholder="اختر المجلد...">
+          <button class="btn btn-secondary" id="pickFolderBtn">اختيار</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>المتصفح المستخدم للرفع</label>
+        <select id="setupBrowser">
+          <option value="chrome">Chrome</option>
+          <option value="brave">Brave</option>
+          <option value="edge">Edge</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label>اسمك</label>
+        <input id="setupOperatorName" type="text" placeholder="مثال: مها">
+        <p class="hint">دخول اسم "yousef" يفتح وضع المطوّر تلقائياً.</p>
+      </div>
+
+      <div class="field-group two-col">
+        <div>
+          <label>رابط المزامنة</label>
+          <input id="setupSyncUrl" type="text" placeholder="https://...">
+        </div>
+        <div>
+          <label>مفتاح المزامنة</label>
+          <input id="setupSyncToken" type="password" placeholder="المفتاح السري">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="checkbox-inline">
+          <input type="checkbox" id="setupHeadless">
+          تشغيل بدون واجهة متصفح مرئية (Headless)
+        </label>
+        <p class="hint">فعّلها لو تشغّل التطبيق على سيرفر لينكس بدون شاشة عرض. اتركها مطفية لو عندك سطح مكتب عادي وتبي تشوف المتصفح وهو شغال.</p>
+      </div>
+
+      <p class="hint">بعد الضغط على "ابدأ الاستخدام"، افتح الإعدادات واضغط "تسجيل الدخول لسوقيفاي" مرة وحدة - التطبيق يستخدم بروفايل متصفح خاص فيه (منفصل تماماً عن كروم الشخصي عندك) ويتذكّر تسجيل دخولك تلقائياً بعدها.</p>
+
+      <button class="btn btn-primary btn-block" id="completeSetupBtn">ابدأ الاستخدام</button>
+    </div>
+  </section>
+
+  <!-- Settings screen -->
+  <section id="settingsScreen" class="screen hidden">
+    <div class="setup-card">
+      <div class="brand-block">
+        <div class="brand-mark">SIU</div>
+        <h1>الإعدادات</h1>
+      </div>
+
+      <div class="field-group">
+        <label>مجلد الصور الرئيسي</label>
+        <div class="input-with-button">
+          <input id="settingsRootFolder" type="text" readonly placeholder="اختر المجلد...">
+          <button class="btn btn-secondary" id="settingsPickFolderBtn">اختيار</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>المتصفح المستخدم للرفع</label>
+        <select id="settingsBrowser">
+          <option value="chrome">Chrome</option>
+          <option value="brave">Brave</option>
+          <option value="edge">Edge</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label>اسمك</label>
+        <input id="settingsOperatorName" type="text" placeholder="مثال: مها">
+      </div>
+
+      <div class="field-group two-col">
+        <div>
+          <label>رابط المزامنة</label>
+          <input id="settingsSyncUrl" type="text" placeholder="https://...">
+        </div>
+        <div>
+          <label>مفتاح المزامنة</label>
+          <input id="settingsSyncToken" type="password" placeholder="اتركه فاضياً للإبقاء على الحالي">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>حد المنتجات لكل تشغيل (0 = بلا حد)</label>
+        <input id="settingsBatchLimit" type="text" inputmode="numeric" placeholder="0">
+      </div>
+
+      <div class="field-group">
+        <label class="checkbox-inline">
+          <input type="checkbox" id="settingsHeadless">
+          تشغيل بدون واجهة متصفح مرئية (Headless)
+        </label>
+      </div>
+
+      <div class="field-group">
+        <label class="checkbox-inline">
+          <input type="checkbox" id="settingsSound">
+          تنبيه صوتي عند انتهاء التشغيل
+        </label>
+      </div>
+
+      <div class="field-group">
+        <label>تسجيل الدخول لسوقيفاي</label>
+        <p class="hint" id="loginStatusHint">يفتح بروفايل متصفح خاص بالتطبيق (منفصل تماماً عن متصفحك الشخصي) - سجّل دخولك فيه وأغلقه، ويُحفظ تلقائياً لكل مرة بعدها.</p>
+        <button class="btn btn-secondary btn-block" id="startLoginBtn">تسجيل الدخول لسوقيفاي</button>
+      </div>
+
+      <div class="field-group two-col">
+        <button class="btn btn-ghost btn-block" id="settingsCancelBtn">رجوع</button>
+        <button class="btn btn-primary btn-block" id="settingsSaveBtn">حفظ</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main screen -->
+  <section id="mainScreen" class="screen hidden">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark small">SIU</span>
+        <span class="brand-title">Sooqify Image Updater</span>
+        <span id="devBadge" class="dev-badge hidden">وضع المطوّر</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost" id="rescanBtn">إعادة فحص</button>
+        <button class="btn btn-ghost" id="settingsBtn">الإعدادات</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="selectAllCheck">
+            تحديد الكل
+          </label>
+          <span id="selectionSummary" class="muted">0 من 0 منتج محدَّد</span>
+        </div>
+        <div class="toolbar-right">
+          <label class="checkbox-inline">
+            <input type="checkbox" id="dryRunCheck" checked>
+            وضع المعاينة (بدون رفع فعلي)
+          </label>
+          <button class="btn btn-secondary" id="stopRunBtn" disabled>إيقاف</button>
+          <button class="btn btn-primary" id="startRunBtn">ابدأ</button>
+        </div>
+      </div>
+
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span id="progressLabel" class="muted">0 / 0</span>
+      </div>
+
+      <div id="productList" class="product-list"></div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <p>ما فيه منتجات بهذا المجلد بعد.</p>
+        <button class="btn btn-secondary" id="emptyRescanBtn">إعادة فحص المجلد</button>
+      </div>
+    </main>
+
+    <footer class="log-panel">
+      <div class="log-header">سجل العمليات</div>
+      <div id="logOutput" class="log-output"></div>
+    </footer>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

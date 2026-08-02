@@ -1,3 +1,8 @@
-playwright
-pywebview
-requests
+# نسخ محدَّدة (pinned) عمداً - خصوصاً playwright اللي يتغيّر بسرعة ويحتاج توافق
+# ثابت مع نسخة كروميوم اللي تُثبَّت بـ `playwright install`. حدّثها يدوياً ومتعمّداً
+# (وشغّل `playwright install chromium` بعدها) بدل ما تترك pip يجيب أي نسخة جديدة تلقائياً.
+playwright==1.48.0
+pywebview==5.3.2
+requests==2.32.3
+keyring==25.4.1
+psutil==6.1.0
