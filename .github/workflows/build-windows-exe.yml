@@ -1,0 +1,45 @@
+# =========================================================
+# Sooqify Image Updater - Windows EXE Build
+# Arabic: يبني ملف exe تلقائياً على سيرفرات ويندوز حقيقية تابعة لـ GitHub عند كل
+# رفعة على main، ويرفعه كـ Release جاهز للتنزيل - بدون أي بناء محلي على أي جهاز.
+# English: Automatically builds the exe on real GitHub-hosted Windows runners on every
+# push to main, and publishes it as a downloadable Release - no local build needed.
+# =========================================================
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+          playwright install chromium
+
+      - name: Build EXE
+        run: pyinstaller build/app.spec
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sooqify-image-updater-windows
+          path: dist/*.exe
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
