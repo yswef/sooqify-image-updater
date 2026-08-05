@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>دليل المطوّر — Sooqify Image Updater</title>
+<style>
+    :root {
+        --ink: #07022A; --surface-alt: #F6F5FC; --secondary: #C5FFE7;
+        --accent: #53F5FF; --border: rgba(7,2,42,.12);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: var(--surface-alt); color: var(--ink); line-height: 1.8; }
+    header { background: linear-gradient(135deg, var(--ink), #171052); color: #fff; padding: 40px 24px; text-align: center; }
+    header .mark { width: 56px; height: 56px; border-radius: 16px; background: var(--ink); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 800; margin: 0 auto 12px; border: 2px solid var(--accent); }
+    header h1 { margin: 0 0 6px; font-size: 24px; }
+    header p { margin: 0; opacity: .75; font-size: 13px; }
+    main { max-width: 780px; margin: 0 auto; padding: 32px 24px 80px; }
+    .card { background: #fff; border-radius: 16px; padding: 24px 28px; margin-bottom: 20px; box-shadow: 0 6px 24px rgba(7,2,42,.06); border: 1px solid var(--border); }
+    .card h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .card h2 .num { width: 26px; height: 26px; border-radius: 8px; background: var(--secondary); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+    .card p, .card li { font-size: 13.5px; color: #333; }
+    .card ul, .card ol { margin: 8px 0; padding-inline-start: 22px; }
+    code { background: var(--surface-alt); padding: 2px 6px; border-radius: 6px; font-family: Consolas, monospace; font-size: 12.5px; direction: ltr; display: inline-block; }
+    pre { background: var(--ink); color: var(--secondary); padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 12.5px; direction: ltr; text-align: left; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: right; }
+    th { background: var(--surface-alt); }
+    .tree { font-family: Consolas, monospace; font-size: 12.5px; direction: ltr; text-align: left; white-space: pre; }
+    footer { text-align: center; padding: 24px; font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+
+<header>
+    <div class="mark">SIU</div>
+    <h1>Sooqify Image Updater — دليل المطوّر</h1>
+    <p>تطوير: يوسف الحمزي</p>
+</header>
+
+<main>
+
+    <div class="card">
+        <h2><span class="num">1</span> هيكل المشروع</h2>
+        <div class="tree">sooqify-image-updater/
+├── app/
+│   ├── main.py           نقطة التشغيل + واجهة pywebview + خيط الرفع الخلفي
+│   ├── config.py          إعدادات أول تشغيل + اكتشاف وضع المطوّر
+│   ├── scanner.py         فحص المجلدات وقراءة product_info.txt
+│   ├── uploader.py        رفع الصور + البحث الآمن والتحقق من الهوية
+│   ├── sync_client.py      التواصل مع sync.php (نفس نظام AlphaCode)
+│   ├── logger_setup.py     سجل طرفية ملوّن
+│   └── ui/                 index.html + styles.css + app.js
+├── dev_tools/               أداة فحص سلوك الرفع (وضع المطوّر فقط)
+├── build/                   ملف PyInstaller
+├── .github/workflows/       بناء exe تلقائي على GitHub Actions
+├── docs/                     هذا الدليل + دليل المستخدم
+└── assets/                   أيقونة التطبيق</div>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">2</span> وضع المطوّر</h2>
+        <p>
+            يُفعَّل تلقائياً لما يكون <code>OperatorName</code> بالإعدادات يساوي
+            <code>yousef</code> (بأي حالة أحرف). يظهر شارة "وضع المطوّر" بأعلى الواجهة.
+        </p>
+        <p>الحد الأقصى للدفعة (<code>BatchLimit</code>) الافتراضي <strong>بلا نهاية</strong> — يُضبط من شاشة الإعدادات.</p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">3</span> المحددات الحقيقية (Selectors) — صفحة سوقيفاي</h2>
+        <table>
+            <tr><th>العنصر</th><th>المحدد</th></tr>
+            <tr><td>الصورة الرئيسية</td><td><code>#customFileEg1</code></td></tr>
+            <tr><td>صور المعرض</td><td><code>input.spartan_image_input</code> (آخر حقل فاضٍ دائماً)</td></tr>
+            <tr><td>زر الحفظ</td><td>زر بنص "اعتماد"، <code>type=submit</code></td></tr>
+            <tr><td>صندوق البحث (القائمة)</td><td><code>#datatableSearch</code></td></tr>
+            <tr><td>عمود التحقق (العرض)</td><td>عمود "العلامات" بجدول التسعير</td></tr>
+        </table>
+        <p>الحفظ الناجح يُعيد التوجيه لـ <code>/admin/item/list</code> — هذا دليل النجاح المعتمد بالكود.</p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">4</span> مشكلة بروفايل Chrome</h2>
+        <p>
+            Chrome يرفض تفعيل التحكم البرمجي (CDP) على مجلد البروفايل الافتراضي مباشرة
+            (قيد أمني من جوجل: <em>"DevTools remote debugging requires a non-default data
+            directory"</em>). الحل المطبَّق بـ <code>main.py</code>: نسخ بيانات البروفايل
+            لمجلد مؤقت (بدون Cache لتسريع النسخ) وتشغيل Playwright على النسخة.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">5</span> البناء إلى exe</h2>
+        <p>لا بناء محلي يدوي — GitHub Actions يبنيه تلقائياً على Windows حقيقي عند أي رفعة لـ <code>main</code> أو أي Tag يبدأ بـ <code>v</code>:</p>
+        <pre>git tag v1.0.0
+git push origin v1.0.0</pre>
+        <p>الملف الناتج يظهر بصفحة <strong>Releases</strong> بالمستودع، جاهز للتنزيل مباشرة.</p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">6</span> سكربت سجل الكومتات</h2>
+        <p>
+            <code>build_history.sh</code> بجذر المشروع يقسّم كل التعديلات لكومتات صغيرة
+            منطقية بتواريخ موزّعة، بنفس منهجية مشروع AlphaCode الرئيسي. شغّله من جذر
+            المستودع بعد أي دفعة تعديلات جديدة.
+        </p>
+    </div>
+
+</main>
+
+<footer>Sooqify Image Updater · تطوير يوسف الحمزي</footer>
+
+</body>
+</html>

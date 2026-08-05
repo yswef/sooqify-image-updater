@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>دليل الاستخدام — Sooqify Image Updater</title>
+<style>
+    :root {
+        --ink: #07022A; --surface: #FFFFFD; --surface-alt: #F6F5FC;
+        --secondary: #C5FFE7; --accent: #53F5FF; --border: rgba(7,2,42,.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; font-family: "Segoe UI", Tahoma, sans-serif;
+        background: var(--surface-alt); color: var(--ink); line-height: 1.8;
+    }
+    header {
+        background: linear-gradient(135deg, var(--ink), #171052); color: #fff;
+        padding: 40px 24px; text-align: center;
+    }
+    header .mark {
+        width: 56px; height: 56px; border-radius: 16px; background: var(--ink);
+        color: var(--accent); display: flex; align-items: center; justify-content: center;
+        font-weight: 800; margin: 0 auto 12px; border: 2px solid var(--accent);
+    }
+    header h1 { margin: 0 0 6px; font-size: 24px; }
+    header p { margin: 0; opacity: .75; font-size: 13px; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 24px 80px; }
+    .card {
+        background: #fff; border-radius: 16px; padding: 24px 28px;
+        margin-bottom: 20px; box-shadow: 0 6px 24px rgba(7,2,42,.06);
+        border: 1px solid var(--border);
+    }
+    .card h2 {
+        font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .card h2 .num {
+        width: 26px; height: 26px; border-radius: 8px; background: var(--secondary);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 13px; font-weight: 800;
+    }
+    .card p, .card li { font-size: 13.5px; color: #333; }
+    .card ul, .card ol { margin: 8px 0; padding-inline-start: 22px; }
+    code {
+        background: var(--surface-alt); padding: 2px 6px; border-radius: 6px;
+        font-family: Consolas, monospace; font-size: 12.5px; direction: ltr; display: inline-block;
+    }
+    pre {
+        background: var(--ink); color: var(--secondary); padding: 14px 16px;
+        border-radius: 10px; overflow-x: auto; font-size: 12.5px; direction: ltr; text-align: left;
+    }
+    .warn {
+        background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 10px;
+        padding: 10px 14px; font-size: 12.5px; margin-top: 10px;
+    }
+    .tree { font-family: Consolas, monospace; font-size: 12.5px; direction: ltr; text-align: left; white-space: pre; }
+    footer { text-align: center; padding: 24px; font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+
+<header>
+    <div class="mark">SIU</div>
+    <h1>Sooqify Image Updater — دليل الاستخدام</h1>
+    <p>تطوير: يوسف الحمزي</p>
+</header>
+
+<main>
+
+    <div class="card">
+        <h2><span class="num">1</span> شنو هذا التطبيق؟</h2>
+        <p>
+            أداة تستبدل صور المنتجات المعدَّلة تلقائياً بلوحة Sooqify، بدون أي برمجة
+            أو تدخل يدوي متكرر. تفحص مجلداً على جهازك فيه مجلد فرعي لكل منتج، تتحقق
+            من هوية المنتج بأمان قبل أي تعديل، ثم ترفع الصور وتحفظ.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">2</span> شكل المجلدات المطلوب</h2>
+        <p>كل منتج له مجلد مستقل يحتوي:</p>
+        <div class="tree">مجلد المنتج/
+├── 1.png            ← الصورة الرئيسية (دائماً الأولى بالترقيم)
+├── 2.png
+├── 3.png
+├── ...
+└── product_info.txt ← يحوي كود الستايل (يُقرأ تلقائياً)</div>
+        <p>الترقيم يحدد الترتيب: <code>1</code> هي الصورة الرئيسية دائماً، والباقي صور المعرض بترتيبها الرقمي.</p>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">3</span> أول تشغيل</h2>
+        <ol>
+            <li>افتح التطبيق.</li>
+            <li>اختر مجلد الصور الرئيسي (اللي فيه كل مجلدات المنتجات).</li>
+            <li>اختر المتصفح اللي مسجّل فيه دخولك بلوحة سوقيفاي.</li>
+            <li>اكتب اسمك.</li>
+            <li>أدخل رابط ومفتاح المزامنة (تحصل عليهم من فريق البرمجة).</li>
+            <li>اضغط "ابدأ الاستخدام".</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">4</span> الاستخدام اليومي</h2>
+        <ol>
+            <li>التطبيق يفحص المجلد تلقائياً ويعرض كل المنتجات الجاهزة.</li>
+            <li>حدّد المنتجات اللي تبي تعالجها (أو "تحديد الكل").</li>
+            <li>
+                فعّل <strong>وضع المعاينة</strong> أول مرة دائماً — يتحقق من كل شي بدون
+                رفع فعلي، يوريك أي منتج جاهز وأي منتج فيه مشكلة.
+            </li>
+            <li>لما تتأكد، ألغِ وضع المعاينة واضغط "ابدأ" للرفع الفعلي.</li>
+            <li>تابع التقدم والسجل أسفل الشاشة.</li>
+        </ol>
+        <div class="warn">
+            ⚠️ التطبيق يفتح متصفحك الحقيقي أثناء الرفع الفعلي — لا تغلقه ولا تستخدمه
+            لشي ثاني لين ما يخلص.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><span class="num">5</span> استكشاف الأخطاء</h2>
+        <ul>
+            <li><strong>منتج "بلا مفتاح بحث":</strong> ملف product_info.txt ناقص أو بلا كود ستايل — تحقق من المجلد يدوياً.</li>
+            <li><strong>فشل التحقق الآمن:</strong> التطبيق ما لقى تطابق مؤكد بلوحة سوقيفاي — يتخطى المنتج بدل ما يخمّن، راجعه يدوياً.</li>
+            <li><strong>خطأ بفتح المتصفح:</strong> تأكد إن المتصفح مغلق تماماً قبل بدء الرفع الفعلي.</li>
+        </ul>
+    </div>
+
+</main>
+
+<footer>Sooqify Image Updater · تطوير يوسف الحمزي</footer>
+
+</body>
+</html>
