@@ -9,7 +9,7 @@ name: Build Windows EXE
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ["v*"]
   workflow_dispatch: {}
 
