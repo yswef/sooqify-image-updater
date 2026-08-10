@@ -1,6 +1,6 @@
 // =========================================================
 // Sooqify Image Updater - Frontend
-// Developer: Yousef Alhamzy
+// تطوير: يوسف الحمزي
 // =========================================================
 
 let state = {
@@ -25,7 +25,7 @@ function log(message, level = "info") {
 }
 
 // -----------------------------------------------------
-// Bootstrap
+// الإقلاع
 // -----------------------------------------------------
 
 window.addEventListener("pywebviewready", async () => {
@@ -42,34 +42,13 @@ window.addEventListener("pywebviewready", async () => {
 
 function showSetupScreen() {
     document.getElementById("setupScreen").classList.remove("hidden");
-    document.getElementById("settingsScreen").classList.add("hidden");
     document.getElementById("mainScreen").classList.add("hidden");
 }
 
 function showMainScreen() {
     document.getElementById("setupScreen").classList.add("hidden");
-    document.getElementById("settingsScreen").classList.add("hidden");
     document.getElementById("mainScreen").classList.remove("hidden");
     updateDevBadge();
-}
-
-function showSettingsScreen() {
-    const cfg = state.config || {};
-    document.getElementById("settingsRootFolder").value = cfg.RootFolder || "";
-    document.getElementById("settingsBrowser").value = cfg.Browser || "chrome";
-    document.getElementById("settingsOperatorName").value = cfg.OperatorName || "";
-    document.getElementById("settingsSyncUrl").value = cfg.SyncServerUrl || "";
-    document.getElementById("settingsSyncToken").value = "";
-    document.getElementById("settingsSyncToken").placeholder = cfg.HasSyncToken
-        ? "•••••••• (اتركه فاضياً للإبقاء عليه)"
-        : "اتركه فاضياً للإبقاء على الحالي";
-    document.getElementById("settingsBatchLimit").value = cfg.BatchLimit ?? 0;
-    document.getElementById("settingsHeadless").checked = !!cfg.Headless;
-    document.getElementById("settingsSound").checked = cfg.SoundOnComplete !== false;
-
-    document.getElementById("setupScreen").classList.add("hidden");
-    document.getElementById("mainScreen").classList.add("hidden");
-    document.getElementById("settingsScreen").classList.remove("hidden");
 }
 
 function updateDevBadge() {
@@ -82,7 +61,7 @@ function updateDevBadge() {
 }
 
 // -----------------------------------------------------
-// First-run setup handlers
+// معالج الإعداد الأول
 // -----------------------------------------------------
 
 document.getElementById("pickFolderBtn").addEventListener("click", async () => {
@@ -120,11 +99,12 @@ document.getElementById("completeSetupBtn").addEventListener("click", async () =
 
     state.config = newConfig;
     showMainScreen();
+    log("تمام! قبل أول رفع فعلي، اضغط زر 'تسجيل الدخول' بالأعلى وسجّل دخولك لسوقيفاي مرة وحدة.");
     await runScan();
 });
 
 // -----------------------------------------------------
-// Scanning and rendering products
+// الفحص وعرض المنتجات
 // -----------------------------------------------------
 
 async function runScan() {
@@ -206,62 +186,21 @@ document.getElementById("rescanBtn").addEventListener("click", runScan);
 document.getElementById("emptyRescanBtn").addEventListener("click", runScan);
 
 // -----------------------------------------------------
-// Settings
+// تسجيل الدخول لمرة وحدة (بروفايل التطبيق المخصص)
 // -----------------------------------------------------
 
-document.getElementById("settingsBtn").addEventListener("click", showSettingsScreen);
-document.getElementById("settingsCancelBtn").addEventListener("click", showMainScreen);
-
-document.getElementById("settingsPickFolderBtn").addEventListener("click", async () => {
-    const folder = await api().choose_root_folder();
-    if (folder) {
-        document.getElementById("settingsRootFolder").value = folder;
-    }
-});
-
-document.getElementById("settingsSaveBtn").addEventListener("click", async () => {
-    const rootFolder = document.getElementById("settingsRootFolder").value.trim();
-    const operatorName = document.getElementById("settingsOperatorName").value.trim();
-    const batchLimitRaw = document.getElementById("settingsBatchLimit").value.trim();
-    const batchLimit = batchLimitRaw === "" ? 0 : Math.max(0, parseInt(batchLimitRaw, 10) || 0);
-    const tokenInput = document.getElementById("settingsSyncToken").value;
-
-    const payload = {
-        RootFolder: rootFolder,
-        Browser: document.getElementById("settingsBrowser").value,
-        OperatorName: operatorName,
-        SyncServerUrl: document.getElementById("settingsSyncUrl").value.trim(),
-        SyncEnabled: !!document.getElementById("settingsSyncUrl").value.trim(),
-        BatchLimit: batchLimit,
-        Headless: document.getElementById("settingsHeadless").checked,
-        SoundOnComplete: document.getElementById("settingsSound").checked,
-    };
-    // Only send SyncToken if the user actually typed a new value - an empty field means "keep the current one".
-    if (tokenInput) {
-        payload.SyncToken = tokenInput;
-    }
-
-    const newConfig = await api().save_config(payload);
-    state.config = newConfig;
-    log("تم حفظ الإعدادات.", "success");
-    showMainScreen();
-    await runScan();
-});
-
-document.getElementById("startLoginBtn").addEventListener("click", async () => {
-    const result = await api().start_login();
+document.getElementById("loginBtn").addEventListener("click", async () => {
+    const result = await api().login_browser();
     if (!result.success) {
         log(result.error, "error");
         return;
     }
-    const hint = document.getElementById("loginStatusHint");
-    hint.textContent = "جارِ فتح المتصفح... سجّل دخولك بلوحة سوقيفاي، ثم أغلق نافذة المتصفح لما تخلص.";
-    document.getElementById("startLoginBtn").disabled = true;
-    log("جارِ فتح متصفح تسجيل الدخول...");
+    document.getElementById("loginBtn").disabled = true;
+    log("جارِ فتح نافذة تسجيل الدخول... سجّل دخولك بلوحة سوقيفاي بالنافذة اللي تفتح، وبعدها أغلقها عادي.");
 });
 
 // -----------------------------------------------------
-// Run
+// التشغيل
 // -----------------------------------------------------
 
 document.getElementById("startRunBtn").addEventListener("click", async () => {
@@ -292,7 +231,7 @@ function setRunningState(running) {
 }
 
 // -----------------------------------------------------
-// Live events from the backend (main.py calls this function directly)
+// أحداث حيّة من الخلفية (main.py يستدعي هذي الدالة مباشرة)
 // -----------------------------------------------------
 
 window.onBackendEvent = function (msg) {
@@ -317,25 +256,17 @@ window.onBackendEvent = function (msg) {
     } else if (event === "run_error") {
         setRunningState(false);
         log(`خطأ: ${payload.error}`, "error");
-    } else if (event === "login_started") {
-        log("جارِ فتح متصفح تسجيل الدخول...");
+    } else if (event === "login_ready") {
+        log("النافذة فتحت - سجّل دخولك وأغلقها لما تخلص.", "success");
     } else if (event === "login_finished") {
-        log("انتهت جلسة تسجيل الدخول - تم الحفظ.", "success");
-        resetLoginButton();
-    } else if (event === "login_error") {
-        log(`تعذّر فتح متصفح تسجيل الدخول: ${payload.error}`, "error");
-        resetLoginButton();
+        document.getElementById("loginBtn").disabled = false;
+        if (payload.success) {
+            log("تم حفظ تسجيل الدخول بنجاح. تقدر تبدأ الرفع الفعلي الحين.", "success");
+        } else {
+            log(`فشل تسجيل الدخول: ${payload.error}`, "error");
+        }
     }
 };
-
-function resetLoginButton() {
-    const btn = document.getElementById("startLoginBtn");
-    const hint = document.getElementById("loginStatusHint");
-    if (btn) btn.disabled = false;
-    if (hint) {
-        hint.textContent = "يفتح بروفايل متصفح خاص بالتطبيق (منفصل تماماً عن متصفحك الشخصي) - سجّل دخولك فيه وأغلقه، ويُحفظ تلقائياً لكل مرة بعدها.";
-    }
-}
 
 function updateProgress(current, total) {
     const percent = total ? Math.round((current / total) * 100) : 0;

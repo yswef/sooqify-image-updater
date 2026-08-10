@@ -1,16 +1,22 @@
 # =========================================================
 # Sooqify Image Updater
-# App entry point - pywebview window + wiring the frontend to the Python backend.
+# نقطة تشغيل التطبيق - نافذة pywebview + ربط الواجهة بمنطق بايثون
 # =========================================================
 
-from __future__ import annotations
-
-import json
 import os
 import sys
 import threading
 import time
-from typing import Any
+
+# عند التشغيل كملف exe مبني (PyInstaller)، متصفح Chromium يكون مرفق داخل
+# مجلد "ms-browsers" جنب الـ exe (جهّزه خط البناء - راجع build/app.spec).
+# لازم نوجّه Playwright له *قبل* استيراده، بدل ما يدوّر على تنزيل منفصل
+# غير موجود على جهاز المستخدم. ما له أي أثر أبداً على التشغيل العادي
+# (python main.py)، لأن sys.frozen غير موجودة إلا بالنسخة المبنية.
+if getattr(sys, "frozen", False):
+    _bundled_browsers = os.path.join(os.path.dirname(sys.executable), "ms-browsers")
+    if os.path.isdir(_bundled_browsers):
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", _bundled_browsers)
 
 import webview
 from playwright.sync_api import sync_playwright
@@ -22,97 +28,77 @@ import sync_client as sync_client_module
 import uploader
 from logger_setup import setup_logger, print_startup_banner
 
-# In a normal source checkout, the project root is the parent of app/. In a PyInstaller
-# --onefile build, everything bundled via `datas` is extracted under sys._MEIPASS at
-# runtime instead - both cases resolve to the same "app/ui" layout underneath.
-if getattr(sys, "frozen", False):
-    _PROJECT_ROOT = sys._MEIPASS
-else:
-    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UI_DIR = os.path.join(_PROJECT_ROOT, "app", "ui")
+UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
 
-# Explicit timeouts (milliseconds) - any browser operation must either finish or fail
-# clearly within this window. We never rely on implicit defaults, which can vary by
-# machine and used to cause silent multi-minute hangs.
+if os.name == "nt":
+    COMMON_PROFILE_PATHS = {
+        "chrome": r"%LOCALAPPDATA%\Google\Chrome\User Data",
+        "brave": r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\User Data",
+        "edge": r"%LOCALAPPDATA%\Microsoft\Edge\User Data",
+    }
+elif sys.platform == "darwin":
+    COMMON_PROFILE_PATHS = {
+        "chrome": "~/Library/Application Support/Google/Chrome",
+        "brave": "~/Library/Application Support/BraveSoftware/Brave-Browser",
+        "edge": "~/Library/Application Support/Microsoft Edge",
+    }
+else:  # لينكس
+    COMMON_PROFILE_PATHS = {
+        "chrome": "~/.config/google-chrome",
+        "brave": "~/.config/BraveSoftware/Brave-Browser",
+        "edge": "~/.config/microsoft-edge",
+    }
+
+
+# مهلات صريحة (مليثانية) - أي عملية متصفح لازم تنتهي أو تفشل بوضوح خلال هالوقت،
+# ما نعتمد أبداً على القيم الافتراضية الضمنية اللي قد تختلف حسب النظام.
 NAVIGATION_TIMEOUT_MS = 20000
 BROWSER_LAUNCH_TIMEOUT_MS = 45000
-
-# Lock files Chrome/Chromium-based browsers write at the root of a user-data-dir to
-# claim exclusive ownership of that profile. If a previous run crashed, was force-quit,
-# or is still lingering, these files (and the process holding them) block any new
-# launch pointed at the same profile - Playwright then just sits there until its own
-# timeout fires, with no useful error. We clear both before every launch.
-_SINGLETON_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+BROWSER_LAUNCH_RETRY_TIMEOUT_MS = 90000  # محاولة ثانية أطول - أول فتح لبروفايل جديد كلياً قد يكون أبطأ من المعتاد.
 
 
-def _clear_stale_profile_lock(profile_dir: str) -> None:
-    """Remove leftover singleton lock files from a previous crashed/killed run."""
-    for name in _SINGLETON_LOCK_FILES:
-        path = os.path.join(profile_dir, name)
+def _launch_browser(playwright, profile_dir, headless, launch_kwargs, logger=None):
+    """يحاول فتح المتصفح، وبمحاولة ثانية بمهلة أطول لو فشلت الأولى بتايم آوت (شائع بأول فتح لبروفايل جديد)."""
+    last_exc = None
+    for attempt, timeout_ms in enumerate([BROWSER_LAUNCH_TIMEOUT_MS, BROWSER_LAUNCH_RETRY_TIMEOUT_MS], start=1):
         try:
-            if os.path.exists(path) or os.path.islink(path):
-                os.remove(path)
-        except OSError:
-            pass  # Best effort - a launch failure below will still surface clearly.
+            return playwright.chromium.launch_persistent_context(
+                profile_dir, headless=headless, no_viewport=True,
+                timeout=timeout_ms, **launch_kwargs,
+            )
+        except Exception as exc:
+            last_exc = exc
+            if logger:
+                logger.warning(
+                    "محاولة %s: فشل فتح المتصفح خلال %.0f ثانية (%s). %s",
+                    attempt, timeout_ms / 1000, exc,
+                    "جارِ محاولة أخرى بمهلة أطول..." if attempt == 1 else "",
+                )
+    raise RuntimeError(
+        f"فشل فتح المتصفح بمحاولتين (حتى {BROWSER_LAUNCH_RETRY_TIMEOUT_MS/1000:.0f} ثانية بالمحاولة الأخيرة). "
+        f"تأكد إن المتصفح مثبّت فعلياً، ولو السيرفر بدون شاشة فعّل 'Headless' بالإعدادات. تفاصيل الخطأ: {last_exc}"
+    ) from last_exc
 
 
-def _kill_stale_profile_processes(profile_dir: str, logger: Any = None) -> None:
+def get_automation_profile_dir():
     """
-    Terminate any leftover browser process that was launched against OUR OWN dedicated
-    profile directory specifically (never a broad "kill every chrome.exe" - that would
-    also close the operator's personal, unrelated browser windows). Matches on the
-    profile path appearing in the process command line, so only our own app-owned
-    profile is ever touched.
+    مجلد بروفايل مخصص لهذا التطبيق فقط (منفصل تماماً عن بروفايل كروم الشخصي).
+    يُنشأ فاضياً أول مرة، تسجّل دخولك فيه مرة وحدة عبر login_browser()، وبعدها
+    كروميوم نفسه يحفظ الكوكيز/الجلسة بداخله تلقائياً - بدون أي نسخ لاحقاً، وبدون
+    تحميل إضافاتك الشخصية أو بيانات متصفحك الحقيقي (وهذا سبب البطء الأساسي سابقاً).
     """
-    try:
-        import psutil
-    except ImportError:
-        return  # Optional dependency - if unavailable we just skip this precise cleanup.
-
-    normalized_profile_dir = os.path.normcase(os.path.normpath(profile_dir))
-    for proc in psutil.process_iter(["name", "cmdline"]):
-        try:
-            cmdline = proc.info.get("cmdline") or []
-            if not cmdline:
-                continue
-            joined = os.path.normcase(" ".join(cmdline))
-            if normalized_profile_dir in joined:
-                if logger:
-                    logger.warning(
-                        "Killing a leftover browser process still holding our profile (pid=%s)...", proc.pid
-                    )
-                proc.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    # Give the OS a brief moment to actually release the file handles/lock.
-    time.sleep(0.5)
+    path = os.path.join(app_config.get_config_dir(), "browser_profile")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
-def prepare_profile_for_launch(profile_dir: str, logger: Any = None) -> None:
-    """Clear anything that could make launch_persistent_context hang on a stale lock."""
-    _kill_stale_profile_processes(profile_dir, logger=logger)
-    _clear_stale_profile_lock(profile_dir)
+def expand_profile_path(raw_path):
+    """يوسّع %VAR% (ويندوز) و ~ (لينكس/ماك) بنفس الدالة، بغض النظر عن المنصة."""
+    return os.path.expanduser(os.path.expandvars(raw_path or ""))
 
 
-# ---------------------------------------------------------------------------
-# Browser profile: owned by the app only - never a copy of the operator's real profile.
-#
-# The previous design copied the operator's entire real Chrome profile (browsing
-# history, cookies, every installed extension, account sync data, etc.) into a temp
-# folder on every live run (~227MB in one observed case, ~70+ seconds by itself), then
-# launched Chrome with all of those personal extensions active - which is what caused
-# the long silent hang at "opening browser...".
-#
-# The replacement: a lightweight, app-owned profile (app_config.get_browser_profile_dir)
-# - completely empty the first time, with no extensions or personal data. You log into
-# Sooqify inside it exactly once (the "Log in to Sooqify" action in Settings), and the
-# persistent context remembers that login automatically afterward - no copying, and no
-# personal browser data ever loaded.
-# ---------------------------------------------------------------------------
-
-
-def get_browser_launch_kwargs(browser_choice: str) -> dict[str, Any]:
-    kwargs: dict[str, Any] = {}
+def get_browser_launch_kwargs(user_data_dir_lower, browser_choice):
+    kwargs = {}
     if browser_choice == "brave":
         if os.name == "nt":
             brave_paths = [
@@ -135,7 +121,7 @@ def get_browser_launch_kwargs(browser_choice: str) -> dict[str, Any]:
     return kwargs
 
 
-def play_completion_sound() -> None:
+def play_completion_sound():
     if os.name == "nt":
         try:
             import winsound
@@ -144,115 +130,84 @@ def play_completion_sound() -> None:
             pass
 
 
-def _launch_error_message(exc: Exception, browser_choice: str) -> str:
-    return (
-        f"فشل فتح المتصفح خلال {BROWSER_LAUNCH_TIMEOUT_MS/1000:.0f} ثانية. غالباً السبب واحد من التالي:\n"
-        f"  • عملية {browser_choice} سابقة عالقة كانت لسه ماسكة نفس بروفايل التطبيق (نظّفنا القفل تلقائياً "
-        f"قبل هالمحاولة - جرّب مرة ثانية، لو استمرت أعد تشغيل الجهاز).\n"
-        f"  • برنامج حماية/جدار حماية (مثل مضاد فيروسات أو أداة مراقبة شبكة) يمنع الاتصال المحلي بين "
-        f"التطبيق والمتصفح - أضف استثناء له.\n"
-        f"  • المتصفح ({browser_choice}) غير مثبّت فعلياً على هذا الجهاز.\n"
-        f"  • لو السيرفر بدون شاشة عرض، فعّل 'Headless' بالإعدادات.\n"
-        f"تفاصيل الخطأ التقنية: {exc}"
-    )
-
-
 class Api:
-    def __init__(self) -> None:
+    def __init__(self):
         self.logger = setup_logger(app_config.get_log_dir())
-        self._window: webview.Window | None = None
-        self.run_thread: threading.Thread | None = None
-        self.login_thread: threading.Thread | None = None
+        self._window = None
+        self.run_thread = None
         self.stop_requested = False
 
-    def bind_window(self, window: webview.Window) -> None:
+    def bind_window(self, window):
         self._window = window
 
-    def _push(self, event: str, payload: Any = None) -> None:
+    def _push(self, event, payload=None):
         if not self._window:
             return
         try:
+            import json
+            # استخدام evaluate_js عبر النافذة بشكل آمن
             self._window.evaluate_js(f"window.onBackendEvent({json.dumps({'event': event, 'payload': payload})})")
         except Exception:
             pass
 
-    # -----------------------------------------------------------------
-    # Settings
-    # -----------------------------------------------------------------
+    def get_config(self):
+        return app_config.load_config()
 
-    def get_config(self) -> dict[str, Any]:
-        """Config for the UI - deliberately without the secret token (kept in the OS credential store only)."""
-        config = app_config.load_config()
-        config["HasSyncToken"] = bool(app_config.load_sync_token())
-        return config
+    def save_config(self, values):
+        return app_config.save_config(values)
 
-    def save_config(self, values: dict[str, Any]) -> dict[str, Any]:
-        saved = app_config.save_config(values)
-        saved["HasSyncToken"] = bool(app_config.load_sync_token())
-        return saved
-
-    def choose_root_folder(self) -> str:
+    def choose_root_folder(self):
         if not self._window:
             return ""
         result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         return result[0] if result else ""
 
-    # -----------------------------------------------------------------
-    # Sooqify login - once, always in a visible browser regardless of the Headless setting.
-    # -----------------------------------------------------------------
+    def suggest_browser_profile_path(self, browser):
+        return expand_profile_path(COMMON_PROFILE_PATHS.get(browser, ""))
 
-    def start_login(self) -> dict[str, Any]:
-        if self.login_thread and self.login_thread.is_alive():
-            return {"success": False, "error": "نافذة تسجيل الدخول مفتوحة بالفعل."}
+    def login_browser(self):
         if self.run_thread and self.run_thread.is_alive():
             return {"success": False, "error": "يوجد تشغيل جارٍ بالفعل - أوقفه أولاً."}
-
-        cfg = app_config.load_config()
-        self.login_thread = threading.Thread(
-            target=self._run_login, args=(cfg.get("Browser", "chrome"),), daemon=True
-        )
-        self.login_thread.start()
+        self.stop_requested = False
+        self.run_thread = threading.Thread(target=self._login_flow, daemon=True)
+        self.run_thread.start()
         return {"success": True}
 
-    def _run_login(self, browser_choice: str) -> None:
-        profile_dir = app_config.get_browser_profile_dir()
-        launch_kwargs = get_browser_launch_kwargs(browser_choice)
-        self.logger.info("Opening browser for login (app-owned dedicated profile)...")
-        self._push("login_started")
-        prepare_profile_for_launch(profile_dir, logger=self.logger)
+    def _login_flow(self):
+        cfg = app_config.load_config()
+        profile_dir = get_automation_profile_dir()
+        launch_kwargs = get_browser_launch_kwargs("", cfg.get("Browser", "chrome"))
+        self.logger.info("جارِ فتح متصفح مخصص لتسجيل الدخول (منفصل عن متصفحك الشخصي)...")
         try:
             with sync_playwright() as playwright:
                 try:
-                    context = playwright.chromium.launch_persistent_context(
-                        profile_dir,
-                        headless=False,  # Login must always be visible, regardless of the Headless setting.
-                        no_viewport=True,
-                        timeout=BROWSER_LAUNCH_TIMEOUT_MS,
-                        ignore_default_args=["--disable-extensions", "--enable-automation"],
-                        **launch_kwargs,
-                    )
+                    context = _launch_browser(playwright, profile_dir, False, launch_kwargs, logger=self.logger)
                 except Exception as exc:
-                    raise RuntimeError(_launch_error_message(exc, browser_choice)) from exc
-                context.set_default_timeout(NAVIGATION_TIMEOUT_MS)
-                context.set_default_navigation_timeout(NAVIGATION_TIMEOUT_MS)
+                    raise RuntimeError(f"فشل فتح المتصفح: {exc}") from exc
+
                 page = context.pages[0] if context.pages else context.new_page()
-                page.goto(uploader.LIST_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
-                self.logger.info("Log in inside the opened browser, then close it when done - it saves automatically.")
-                # Wait for the operator to close the browser manually (no timeout) - by then the
-                # session is already saved into the profile directory.
-                page.wait_for_event("close", timeout=0)
+                try:
+                    page.goto(uploader.LIST_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+                except Exception:
+                    pass  # لو ما فتحت الصفحة لأي سبب (قبل تسجيل الدخول)، خلي المستخدم يكمل يدوياً
+
+                self._push("login_ready", {})
+                self.logger.info("سجّل دخولك بلوحة سوقيفاي بالنافذة اللي فتحت، وبعدها أغلقها عادي - بيانات الدخول تُحفظ تلقائياً بدون أي خطوة إضافية.")
+                try:
+                    page.wait_for_event("close", timeout=0)
+                except Exception:
+                    pass
+                try:
+                    context.close()
+                except Exception:
+                    pass
+            self.logger.info("تم حفظ جلسة الدخول بنجاح.")
+            self._push("login_finished", {"success": True})
         except Exception as exc:
-            self.logger.error("Could not open the login browser: %s", exc)
-            self._push("login_error", {"error": str(exc)})
-            return
-        self.logger.info("Login session ended.")
-        self._push("login_finished")
+            self.logger.error("فشل تسجيل الدخول: %s", exc)
+            self._push("login_finished", {"success": False, "error": str(exc)})
 
-    # -----------------------------------------------------------------
-    # Scan and run
-    # -----------------------------------------------------------------
-
-    def scan_products(self) -> dict[str, Any]:
+    def scan_products(self):
         cfg = app_config.load_config()
         root = cfg.get("RootFolder", "")
         if not root or not os.path.isdir(root):
@@ -277,11 +232,9 @@ class Api:
             ],
         }
 
-    def start_run(self, selected_paths: list[str], dry_run: bool = True) -> dict[str, Any]:
+    def start_run(self, selected_paths, dry_run=True):
         if self.run_thread and self.run_thread.is_alive():
             return {"success": False, "error": "يوجد تشغيل جارٍ بالفعل."}
-        if self.login_thread and self.login_thread.is_alive():
-            return {"success": False, "error": "أغلق نافذة تسجيل الدخول أولاً."}
 
         self.stop_requested = False
         self.run_thread = threading.Thread(
@@ -290,12 +243,12 @@ class Api:
         self.run_thread.start()
         return {"success": True}
 
-    def stop_run(self) -> dict[str, Any]:
+    def stop_run(self):
         self.stop_requested = True
         return {"success": True}
 
-    def _run_pipeline(self, selected_paths: list[str], dry_run: bool) -> None:
-        cfg = app_config.load_config_with_token()
+    def _run_pipeline(self, selected_paths, dry_run):
+        cfg = app_config.load_config()
         root = cfg.get("RootFolder", "")
         all_products = {p.path: p for p in scanner.scan_root_folder(root)}
         targets = [all_products[p] for p in selected_paths if p in all_products]
@@ -307,7 +260,7 @@ class Api:
         self._push("run_started", {"total": len(targets), "dry_run": dry_run})
 
         sync = sync_client_module.SyncClient(cfg.get("SyncServerUrl", ""), cfg.get("SyncToken", ""))
-        results: dict[str, list[dict[str, Any]]] = {"success": [], "skipped": [], "failed": []}
+        results = {"success": [], "skipped": [], "failed": []}
 
         if dry_run:
             for product in targets:
@@ -326,33 +279,27 @@ class Api:
             return
 
         headless = bool(cfg.get("Headless", False))
-        browser_choice = cfg.get("Browser", "chrome")
-        profile_dir = app_config.get_browser_profile_dir()
         try:
-            launch_kwargs = get_browser_launch_kwargs(browser_choice)
+            profile_dir = get_automation_profile_dir()
+            if not os.listdir(profile_dir):
+                raise RuntimeError(
+                    "ما سجّلت دخولك لسوقيفاي بعد بمتصفح التطبيق. اضغط زر 'تسجيل الدخول' "
+                    "بالشريط العلوي أول مرة، سجّل دخولك بالنافذة اللي تفتح، وأغلقها - وبعدها جرّب الرفع مرة ثانية."
+                )
+            launch_kwargs = get_browser_launch_kwargs("", cfg.get("Browser", "chrome"))
 
-            self.logger.info("Opening browser (%s, headless=%s)...", browser_choice, headless)
-            prepare_profile_for_launch(profile_dir, logger=self.logger)
+            self.logger.info(
+                "جارِ فتح المتصفح (%s، headless=%s)...", cfg.get("Browser", "chrome"), headless
+            )
             launch_started = time.monotonic()
 
             with sync_playwright() as playwright:
-                try:
-                    context = playwright.chromium.launch_persistent_context(
-                        profile_dir,
-                        headless=headless,
-                        no_viewport=True,
-                        timeout=BROWSER_LAUNCH_TIMEOUT_MS,
-                        ignore_default_args=["--disable-extensions", "--enable-automation"],
-                        **launch_kwargs,
-                    )
-                except Exception as exc:
-                    raise RuntimeError(_launch_error_message(exc, browser_choice)) from exc
+                context = _launch_browser(playwright, profile_dir, headless, launch_kwargs, logger=self.logger)
 
-                self.logger.info("Browser opened successfully in %.1fs.", time.monotonic() - launch_started)
+                self.logger.info("تم فتح المتصفح بنجاح خلال %.1f ثانية.", time.monotonic() - launch_started)
 
-                # Explicit timeout for every navigation/action - never rely on the implicit
-                # default, so any hang surfaces as a clear error within seconds instead of
-                # hanging silently.
+                # مهلة صريحة لكل تنقل/إجراء - أبداً ما نعتمد على الافتراضي الضمني،
+                # عشان أي تعليق يطلع كخطأ واضح خلال ثوانٍ بدل ما يعلّق بصمت.
                 context.set_default_timeout(NAVIGATION_TIMEOUT_MS)
                 context.set_default_navigation_timeout(NAVIGATION_TIMEOUT_MS)
 
@@ -364,7 +311,7 @@ class Api:
                         break
 
                     self._push("product_started", {"folder": product.folder_name, "index": i, "total": len(targets)})
-                    self.logger.info("[%s/%s] Processing: %s", i, len(targets), product.folder_name)
+                    self.logger.info("[%s/%s] بدء معالجة: %s", i, len(targets), product.folder_name)
                     result = uploader.process_product_folder(
                         page, sync, product, cfg.get("OperatorName", ""), logger=self.logger
                     )
@@ -384,7 +331,7 @@ class Api:
                 context.close()
 
         except Exception as exc:
-            self.logger.error("Run stopped due to an unexpected error: %s", exc)
+            self.logger.error("توقف التشغيل بخطأ غير متوقع: %s", exc)
             self._push("run_error", {"error": str(exc)})
             return
 
@@ -393,7 +340,7 @@ class Api:
         self._push("run_finished", results)
 
 
-def main() -> None:
+def main():
     print_startup_banner()
     api = Api()
     window = webview.create_window(
@@ -406,10 +353,10 @@ def main() -> None:
     )
     api.bind_window(window)
     if os.name == "nt":
-        # Use the edgechromium engine to work around WinForms/Accessibility issues (Windows only).
+        # استخدام محرك edgechromium لحل مشكلة WinForms / Accessibility (ويندوز فقط)
         webview.start(gui='edgechromium')
     else:
-        # On Linux/macOS, let pywebview auto-pick whichever engine is available (gtk/qt/cocoa).
+        # على لينكس/ماك نترك pywebview يختار المحرك المتاح تلقائياً (gtk/qt/cocoa)
         webview.start()
 
 

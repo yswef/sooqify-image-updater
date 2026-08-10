@@ -24,7 +24,7 @@ body {
 
 .hidden { display: none !important; }
 
-/* ---------- Setup screen ---------- */
+/* ---------- شاشة الإعداد ---------- */
 
 #setupScreen {
     height: 100vh;
@@ -33,18 +33,6 @@ body {
     justify-content: center;
     background: linear-gradient(135deg, var(--ink), #171052);
 }
-
-#settingsScreen {
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--ink), #171052);
-    overflow-y: auto;
-    padding: 24px 0;
-}
-
-#settingsScreen .setup-card { margin: auto; }
 
 .setup-card {
     background: var(--surface);
@@ -91,7 +79,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: tran
 .btn-secondary { background: var(--secondary); color: var(--ink); }
 .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--border); }
 
-/* ---------- Main screen ---------- */
+/* ---------- الشاشة الرئيسية ---------- */
 
 #mainScreen { display: flex; flex-direction: column; height: 100vh; }
 

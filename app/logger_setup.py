@@ -1,14 +1,13 @@
 # =========================================================
 # Sooqify Image Updater
-# A colorized, structured console logger, in the same spirit as the original AlphaCode.
+# سجل طرفية ملوّن ومنظم، بنفس روح AlphaCode الأصلي.
 # =========================================================
-# Developer: Yousef Alhamzy
-
-from __future__ import annotations
+# تطوير: يوسف الحمزي
 
 import logging
 import os
 import sys
+from datetime import datetime
 
 
 class AnsiColors:
@@ -23,8 +22,8 @@ class AnsiColors:
     WHITE = "\033[97m"
 
 
-def enable_windows_ansi_support() -> None:
-    """Enable ANSI color handling on older Windows cmd/PowerShell."""
+def enable_windows_ansi_support():
+    """تفعيل معالجة ألوان ANSI على cmd/PowerShell القديمة في ويندوز."""
     if os.name == "nt":
         os.system("")
 
@@ -33,7 +32,7 @@ enable_windows_ansi_support()
 
 
 class ConsoleFormatter(logging.Formatter):
-    """A tidy, colorized format: time + icon + source + message."""
+    """تنسيق ملوّن ومرتّب: وقت + رمز + مصدر + رسالة."""
 
     LEVEL_STYLE = {
         "DEBUG": (AnsiColors.GRAY, "·"),
@@ -43,7 +42,7 @@ class ConsoleFormatter(logging.Formatter):
         "CRITICAL": (AnsiColors.RED + AnsiColors.BOLD, "X"),
     }
 
-    def format(self, record: logging.LogRecord) -> str:
+    def format(self, record):
         color, symbol = self.LEVEL_STYLE.get(record.levelname, (AnsiColors.WHITE, "*"))
         timestamp = self.formatTime(record, "%H:%M:%S")
         source_tag = record.name.upper()[:14].ljust(14)
@@ -56,14 +55,14 @@ class ConsoleFormatter(logging.Formatter):
         )
 
 
-def setup_logger(log_dir: str, name: str = "sooqify_updater") -> logging.Logger:
+def setup_logger(log_dir, name="sooqify_updater"):
     """
-    Sets up a colorized console logger + a plain-text log file (no color codes).
-    log_dir: folder to store the log file in (created automatically if missing).
+    تهيئة سجل طرفية ملوّن + ملف سجل خارجي نصي عادي (بدون رموز ألوان).
+    log_dir: مجلد حفظ ملف السجل (يُنشأ تلقائياً لو غير موجود).
     """
     logger = logging.getLogger(name)
     if logger.handlers:
-        return logger  # Avoid adding duplicate handlers if this is called more than once.
+        return logger  # تجنّب تكرار الإضافة لو استُدعيت أكثر من مرة.
 
     logger.setLevel(logging.INFO)
 
@@ -85,8 +84,8 @@ def setup_logger(log_dir: str, name: str = "sooqify_updater") -> logging.Logger:
     return logger
 
 
-def print_startup_banner() -> None:
-    """Prints a startup banner when the app launches."""
+def print_startup_banner():
+    """طباعة شعار ترحيبي عند تشغيل التطبيق."""
     os.system("cls" if os.name == "nt" else "clear")
     banner = r"""
 ========================================================================

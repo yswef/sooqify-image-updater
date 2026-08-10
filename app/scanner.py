@@ -1,11 +1,9 @@
 # =========================================================
 # Sooqify Image Updater
-# Scans the root folder, reads each product folder and its product_info.txt, and
-# orders images so 1.png is always the main image.
+# فحص المجلد الرئيسي، قراءة كل مجلد منتج وملف product_info.txt، وترتيب الصور
+# بحيث تكون 1.png هي الرئيسية دائماً.
 # =========================================================
-# Developer: Yousef Alhamzy
-
-from __future__ import annotations
+# تطوير: يوسف الحمزي
 
 import os
 import re
@@ -14,9 +12,8 @@ from dataclasses import dataclass, field
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 INFO_FILENAME = "product_info.txt"
 
-# Matches product_info.txt lines: "Style Code: XXXX", and also "Product ID: 123" if
-# that gets reintroduced by the source app later (forward-compatible, no change needed
-# here - see the note at the bottom of this file about the product_id field).
+# يطابق أسطر product_info.txt الحالية: "Style Code: XXXX", وأيضاً "Product ID: 123"
+# لو أُعيد إضافته لاحقاً بالتطبيق الرئيسي (متوافق للأمام بدون أي تعديل هنا).
 INFO_LINE_PATTERN = re.compile(r"^\s*([A-Za-z ]+)\s*:\s*(.*)$")
 
 
@@ -25,23 +22,23 @@ class ProductFolder:
     path: str
     folder_name: str
     style_code: str = ""
-    product_id: str = ""          # Display-only - see the note at the bottom of this file; not used for the safe verification check.
+    product_id: str = ""          # قد يبقى فارغاً لو الملف القديم بلا هذا السطر - راجع الملاحظة بالأسفل.
     name_en: str = ""
     name_ar: str = ""
     added_by: str = ""
     date_added: str = ""
-    images: list[str] = field(default_factory=list)   # Ordered: [main, secondary...]
+    images: list = field(default_factory=list)   # مرتّبة: [الرئيسية, فرعية...]
     info_found: bool = False
 
     @property
-    def has_search_key(self) -> bool:
-        """Any search key we can use on the Sooqify dashboard - the style code or the name."""
+    def has_search_key(self):
+        """أي مفتاح بحث نقدر نستخدمه بلوحة سوقيفاي - الستايل كود أو الاسم."""
         return bool(self.style_code or self.name_en)
 
 
-def parse_product_info(info_path: str) -> dict[str, str]:
-    """Reads product_info.txt and returns its values as a simple dict, independent of line order."""
-    values: dict[str, str] = {}
+def parse_product_info(info_path):
+    """يقرأ product_info.txt ويرجّع القيم كقاموس بسيط، بلا حساسية لترتيب الأسطر."""
+    values = {}
     try:
         with open(info_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -58,25 +55,24 @@ def parse_product_info(info_path: str) -> dict[str, str]:
     return values
 
 
-def sort_images(image_filenames: list[str]) -> list[str]:
+def sort_images(image_filenames):
     """
-    Orders images so "1.xxx" always comes first (the main image), then the rest
-    numerically. Any non-numeric name is pushed to the end instead of breaking the order.
+    يرتّب الصور بحيث "1.xxx" دائماً أولاً (الصورة الرئيسية)، والباقي رقمياً بعدها.
+    أي اسم غير رقمي يُرحَّل لنهاية القائمة بدل ما يكسر الترتيب.
     """
-    def sort_key(filename: str) -> tuple[int, int | str]:
+    def sort_key(filename):
         stem = os.path.splitext(filename)[0]
         return (0, int(stem)) if stem.isdigit() else (1, filename.lower())
 
     return sorted(image_filenames, key=sort_key)
 
 
-def scan_product_folder(folder_path: str) -> ProductFolder | None:
-    """Builds a ProductFolder from a single product folder, or None if it has no images (or couldn't be read)."""
+def scan_product_folder(folder_path):
+    """يبني ProductFolder من مجلد منتج واحد، أو None لو المجلد لا يحتوي أي صور أصلاً."""
     folder_name = os.path.basename(folder_path.rstrip(os.sep))
     try:
         entries = os.listdir(folder_path)
     except OSError:
-        # Permissions locked or an invalid path for this specific folder - skip just this one instead of failing the whole scan.
         return None
 
     image_files = [
@@ -100,48 +96,38 @@ def scan_product_folder(folder_path: str) -> ProductFolder | None:
         product.product_id = values.get("product id", "")
         product.added_by = values.get("added by", "")
         product.date_added = values.get("date added", "")
-        try:
-            # The first two "Name:" lines are English then Arabic, in the same order as the original file.
-            with open(info_path, "r", encoding="utf-8") as f:
-                name_lines = [
-                    match.group(2).strip()
-                    for line in f
-                    if (match := INFO_LINE_PATTERN.match(line)) and match.group(1).strip().lower() == "name"
-                ]
-            if name_lines:
-                product.name_en = name_lines[0]
-            if len(name_lines) > 1:
-                product.name_ar = name_lines[1]
-        except OSError:
-            pass  # Same protection as above - don't fail the whole scan for one product's file.
+        # أول سطرين "Name:" هما الإنجليزي ثم العربي بنفس ترتيب كتابتهما بالملف الأصلي.
+        name_lines = [
+            match.group(2).strip()
+            for line in open(info_path, "r", encoding="utf-8")
+            if (match := INFO_LINE_PATTERN.match(line)) and match.group(1).strip().lower() == "name"
+        ]
+        if name_lines:
+            product.name_en = name_lines[0]
+        if len(name_lines) > 1:
+            product.name_ar = name_lines[1]
 
     return product
 
 
-def scan_root_folder(root_folder: str) -> list[ProductFolder]:
+def scan_root_folder(root_folder):
     """
-    Scans the root folder (any organization depth - brand/date/product), returning
-    every folder that contains images as one ProductFolder.
-
-    Once a folder is recognized as a product (it has images), we do not keep descending
-    into its subfolders - if a product has an extra subfolder (a backup copy, say),
-    this prevents it from also being treated as a separate product (duplicate/polluted results).
+    يمسح كل المجلدات الفرعية المباشرة تحت المجلد الرئيسي (بأي عمق تنظيم - براند/تاريخ/منتج)،
+    ويرجّع كل مجلد فيه صور كـ ProductFolder واحد.
     """
-    products: list[ProductFolder] = []
-    for current_dir, sub_dirs, _files in os.walk(root_folder):
+    products = []
+    for current_dir, _sub_dirs, _files in os.walk(root_folder):
         product = scan_product_folder(current_dir)
         if product:
             products.append(product)
-            sub_dirs[:] = []  # Don't descend into subfolders of a folder already identified as a product.
     return products
 
 
 # =========================================================
-# Note: the "Product ID" column may be missing from older versions of
-# product_info.txt. This does not affect the safety of the product-identity
-# verification before editing: the actual check (uploader.search_and_open_product)
-# relies entirely on the real ID returned by the central sync system
-# (sync_client.lookup_product_by_style_code), compared against the "Tags" column shown
-# on the Sooqify dashboard itself - not on this local field at all. product_id here is
-# display-only (shown in the UI if present), and its absence never disables any safety step.
+# ملاحظة مهمة: عمود "Product ID" غير موجود بالنسخة الحالية من product_info.txt
+# (أُزيل بتحديث سابق بالتطبيق الرئيسي). التحقق الآمن من هوية المنتج قبل التعديل
+# يحتاج هذا الرقم مطابقاً للعلامة (Tag) المكتوبة يدوياً بلوحة سوقيفاي. يوصى بإعادة
+# سطر "Product ID: {next_id}" لدالة كتابة product_info.txt بـ app.py قبل تفعيل
+# خطوة التحقق فعلياً - بدون هذا السطر، يعمل هذا الملف بالبحث بالستايل كود/الاسم
+# فقط دون تحقق إضافي من رقم الـ ID.
 # =========================================================

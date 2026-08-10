@@ -3,14 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <title>Sooqify Image Updater</title>
-<link rel="icon" type="image/png" href="assets/icon.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <div id="app">
 
-  <!-- First-run setup screen -->
+  <!-- شاشة الإعداد الأول -->
   <section id="setupScreen" class="screen hidden">
     <div class="setup-card">
       <div class="brand-block">
@@ -28,7 +27,7 @@
       </div>
 
       <div class="field-group">
-        <label>المتصفح المستخدم للرفع</label>
+        <label>المتصفح المستخدم لتسجيل الدخول</label>
         <select id="setupBrowser">
           <option value="chrome">Chrome</option>
           <option value="brave">Brave</option>
@@ -61,86 +60,11 @@
         <p class="hint">فعّلها لو تشغّل التطبيق على سيرفر لينكس بدون شاشة عرض. اتركها مطفية لو عندك سطح مكتب عادي وتبي تشوف المتصفح وهو شغال.</p>
       </div>
 
-      <p class="hint">بعد الضغط على "ابدأ الاستخدام"، افتح الإعدادات واضغط "تسجيل الدخول لسوقيفاي" مرة وحدة - التطبيق يستخدم بروفايل متصفح خاص فيه (منفصل تماماً عن كروم الشخصي عندك) ويتذكّر تسجيل دخولك تلقائياً بعدها.</p>
-
       <button class="btn btn-primary btn-block" id="completeSetupBtn">ابدأ الاستخدام</button>
     </div>
   </section>
 
-  <!-- Settings screen -->
-  <section id="settingsScreen" class="screen hidden">
-    <div class="setup-card">
-      <div class="brand-block">
-        <div class="brand-mark">SIU</div>
-        <h1>الإعدادات</h1>
-      </div>
-
-      <div class="field-group">
-        <label>مجلد الصور الرئيسي</label>
-        <div class="input-with-button">
-          <input id="settingsRootFolder" type="text" readonly placeholder="اختر المجلد...">
-          <button class="btn btn-secondary" id="settingsPickFolderBtn">اختيار</button>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label>المتصفح المستخدم للرفع</label>
-        <select id="settingsBrowser">
-          <option value="chrome">Chrome</option>
-          <option value="brave">Brave</option>
-          <option value="edge">Edge</option>
-        </select>
-      </div>
-
-      <div class="field-group">
-        <label>اسمك</label>
-        <input id="settingsOperatorName" type="text" placeholder="مثال: مها">
-      </div>
-
-      <div class="field-group two-col">
-        <div>
-          <label>رابط المزامنة</label>
-          <input id="settingsSyncUrl" type="text" placeholder="https://...">
-        </div>
-        <div>
-          <label>مفتاح المزامنة</label>
-          <input id="settingsSyncToken" type="password" placeholder="اتركه فاضياً للإبقاء على الحالي">
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label>حد المنتجات لكل تشغيل (0 = بلا حد)</label>
-        <input id="settingsBatchLimit" type="text" inputmode="numeric" placeholder="0">
-      </div>
-
-      <div class="field-group">
-        <label class="checkbox-inline">
-          <input type="checkbox" id="settingsHeadless">
-          تشغيل بدون واجهة متصفح مرئية (Headless)
-        </label>
-      </div>
-
-      <div class="field-group">
-        <label class="checkbox-inline">
-          <input type="checkbox" id="settingsSound">
-          تنبيه صوتي عند انتهاء التشغيل
-        </label>
-      </div>
-
-      <div class="field-group">
-        <label>تسجيل الدخول لسوقيفاي</label>
-        <p class="hint" id="loginStatusHint">يفتح بروفايل متصفح خاص بالتطبيق (منفصل تماماً عن متصفحك الشخصي) - سجّل دخولك فيه وأغلقه، ويُحفظ تلقائياً لكل مرة بعدها.</p>
-        <button class="btn btn-secondary btn-block" id="startLoginBtn">تسجيل الدخول لسوقيفاي</button>
-      </div>
-
-      <div class="field-group two-col">
-        <button class="btn btn-ghost btn-block" id="settingsCancelBtn">رجوع</button>
-        <button class="btn btn-primary btn-block" id="settingsSaveBtn">حفظ</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Main screen -->
+  <!-- الشاشة الرئيسية -->
   <section id="mainScreen" class="screen hidden">
     <header class="topbar">
       <div class="topbar-brand">
@@ -150,6 +74,7 @@
       </div>
       <div class="topbar-actions">
         <button class="btn btn-ghost" id="rescanBtn">إعادة فحص</button>
+        <button class="btn btn-primary" id="loginBtn" title="سجّل دخولك لسوقيفاي مرة وحدة قبل أول رفع فعلي">تسجيل الدخول</button>
         <button class="btn btn-ghost" id="settingsBtn">الإعدادات</button>
       </div>
     </header>
