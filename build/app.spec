@@ -27,7 +27,10 @@ ICON_PATH = os.path.join(UI_DIR, "assets", "icon.ico")
 BROWSERS_DIR = os.path.join(PROJECT_ROOT, "ms-browsers")
 
 datas = [
-    (UI_DIR, "app/ui"),
+    # main.py وقت التشغيل المُجمَّع يوصل لجذر الحزمة مباشرة (مو داخل app/)،
+    # وuploader.py يبحث عن الواجهة كمجلد "ui" شقيق له مباشرة - فلازم تُنسخ
+    # لنفس المكان هذا بالضبط، مو "app/ui"، وإلا يطلع 404 عند التشغيل.
+    (UI_DIR, "ui"),
 ]
 if os.path.isdir(BROWSERS_DIR):
     datas.append((BROWSERS_DIR, "ms-browsers"))
