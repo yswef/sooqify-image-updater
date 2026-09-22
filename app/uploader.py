@@ -8,6 +8,8 @@
 import os
 import time
 
+import work_log
+
 # ---------------------------------------------------------
 # رفع الصور (صفحة التعديل)
 # ---------------------------------------------------------
@@ -456,17 +458,25 @@ def process_product_folder(page, sync_client, product, operator_name, dry_run=Fa
         product_id=product.product_id, dry_run=dry_run, operator_name=operator_name, logger=logger
     )
 
-    # تسجيل وحدة العمل فقط بالوضع التلقائي (بدون dry_run) ولو نجح الرفع.
+    # تسجيل وحدة العمل فقط بالوضع التلقائي (بدون dry_run).
     # بوضع المراجعة لا نسجّل شيئاً لأن الاعتماد بيد المشغّل ولم يتأكد الحفظ بعد.
-    if result.success and not dry_run:
-        item_id = product.style_code or product.folder_name
+    if not dry_run:
+        item_id = product.style_code or product.search_code or product.folder_name
         outcome = sync_client.record_images_updated(
             item_id,
             result.images_uploaded,
             operator_name,
-            extra={"product_id": product.product_id or "", "folder": product.folder_name},
+            # الفشل يُسجَّل محلياً أيضاً، فيُرى "ما لم يُنجَز" بدل اختفائه بنهاية التشغيل.
+            status=work_log.STATUS_DONE if result.success else work_log.STATUS_FAILED,
+            extra={
+                "product_id": product.product_id or "",
+                "folder": product.folder_name,
+                **({} if result.success else {"failure_reason": result.message}),
+            },
             logger=logger,
         )
+        if not result.success:
+            return result
         if logger:
             if outcome["recorded"] and outcome["pushed"]:
                 logger.info(

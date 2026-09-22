@@ -234,6 +234,80 @@ const settingsModal = document.getElementById("settingsModal");
 document.getElementById("settingsBtn").addEventListener("click", () => {
     populateSettingsInputs();
     settingsModal.classList.remove("hidden");
+    refreshSyncStatus();
+});
+
+// -----------------------------------------------------
+// حالة سجل العمل والمزامنة
+// نعرض الأرقام الخام دائماً. "متطابق" لا تُكتب إلا والفارق صفر - الفشل الصامت
+// بمشروع AlphaCode كان بالضبط أن المزامنة تقول "نجحت" وثلث البيانات مفقود.
+// -----------------------------------------------------
+
+function renderSyncStatus(status) {
+    const box = document.getElementById("syncStatusBox");
+    if (!status || !status.success) {
+        box.textContent = "تعذّرت قراءة الحالة.";
+        return;
+    }
+    const lines = [`وحدات عمل محفوظة محلياً: ${status.local_units}`];
+    if (status.corrupt_local_lines > 0) {
+        lines.push(`⚠️ أسطر تالفة بالسجل: ${status.corrupt_local_lines} (وحدات عمل مفقودة)`);
+    }
+    lines.push(`آخر مصالحة كاملة: ${status.last_reconcile_at || "لم تُجرَ بعد"}`);
+    if (status.last_delta !== null && status.last_delta !== undefined) {
+        lines.push(`فارق العدد بآخر مصالحة (خادم − محلي): ${status.last_delta}`);
+    }
+    if (status.last_error) {
+        lines.push(`⚠️ آخر خطأ: ${status.last_error}`);
+    }
+    if (status.last_in_sync === true) {
+        lines.push("✅ متطابق مع الخادم.");
+    } else if (status.last_in_sync === false) {
+        lines.push("⚠️ غير متطابق — لا تعتمد التقرير كمكتمل قبل أن يصير الفارق صفراً.");
+    }
+    box.innerHTML = lines.map(line => `<div>${escapeHtml(line)}</div>`).join("");
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function refreshSyncStatus() {
+    try {
+        renderSyncStatus(await api().get_sync_status());
+    } catch (e) {
+        document.getElementById("syncStatusBox").textContent = `تعذّرت قراءة الحالة: ${e}`;
+    }
+}
+
+document.getElementById("refreshSyncStatusBtn").addEventListener("click", refreshSyncStatus);
+
+document.getElementById("reconcileSyncBtn").addEventListener("click", async () => {
+    const button = document.getElementById("reconcileSyncBtn");
+    const box = document.getElementById("syncStatusBox");
+    button.disabled = true;
+    box.textContent = "جارِ المصالحة الكاملة مع الخادم...";
+    try {
+        const result = await api().reconcile_sync();
+        if (!result.success) {
+            box.textContent = `فشلت المصالحة: ${result.error}`;
+            log(`فشلت المصالحة الكاملة: ${result.error}`, "error");
+        } else {
+            log(
+                `المصالحة: محلي ${result.local_count} · خادم ${result.remote_count} · ` +
+                `الفارق ${result.delta} · أُضيف محلياً ${result.pulled_in} · رُفع ${result.pushed}` +
+                (result.in_sync ? " · متطابق." : " · ⚠️ غير متطابق."),
+                result.in_sync ? "success" : "error"
+            );
+            await refreshSyncStatus();
+        }
+    } catch (e) {
+        box.textContent = `خطأ غير متوقع: ${e}`;
+    } finally {
+        button.disabled = false;
+    }
 });
 
 document.getElementById("closeSettingsBtn").addEventListener("click", () => {

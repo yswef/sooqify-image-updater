@@ -10,7 +10,22 @@ import re
 from dataclasses import dataclass, field
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-INFO_FILENAME = "product_info.txt"
+
+# على القرص توجد **صيغتان** لملف بيانات المنتج، وكلتاهما حقيقيتان:
+#
+#   product_info.txt  (مجلدات المصممة)      : Name ×2 + Style Code + Date Added + Added By
+#                                             — بلا Product ID
+#   style_code.txt    (مُخرَج AlphaCode الحالي): Style Code + Search Code + Product ID
+#                                             — بلا أسماء ولا Added By
+#
+# قبل هذا التغيير كان السكانر يقرأ الأول فقط، فأي مجلد قادم من AlphaCode مباشرةً
+# ينتهي بـstyle_code فارغ وname_en فارغ ⇒ has_search_key=False ⇒ **يُتخطّى بصمت**.
+# تُحقق منه على بيانات حقيقية: 80 مجلداً بصيغة style_code.txt على هذا الجهاز كانت
+# ستُتخطّى بالكامل. نقرأ الاثنين ونضمّهما، فيكمل كلٌّ نقص الآخر.
+INFO_FILENAMES = ("product_info.txt", "style_code.txt")
+
+# متروك للتوافق الخلفي مع أي مستدعٍ خارجي قديم.
+INFO_FILENAME = INFO_FILENAMES[0]
 
 # يطابق أسطر product_info.txt الحالية: "Style Code: XXXX", وأيضاً "Product ID: 123"
 # لو أُعيد إضافته لاحقاً بالتطبيق الرئيسي (متوافق للأمام بدون أي تعديل هنا).
@@ -22,7 +37,8 @@ class ProductFolder:
     path: str
     folder_name: str
     style_code: str = ""
-    product_id: str = ""          # قد يبقى فارغاً لو الملف القديم بلا هذا السطر - راجع الملاحظة بالأسفل.
+    search_code: str = ""         # رقم بحث المورّد - موجود بـstyle_code.txt وحده.
+    product_id: str = ""          # موجود بـstyle_code.txt؛ product_info.txt لا يحمله.
     name_en: str = ""
     name_ar: str = ""
     added_by: str = ""
@@ -32,8 +48,8 @@ class ProductFolder:
 
     @property
     def has_search_key(self):
-        """أي مفتاح بحث نقدر نستخدمه بلوحة سوقيفاي - الستايل كود أو الاسم."""
-        return bool(self.style_code or self.name_en)
+        """أي مفتاح بحث نقدر نستخدمه بلوحة سوقيفاي - الستايل كود أو كود البحث أو الاسم."""
+        return bool(self.style_code or self.search_code or self.name_en)
 
 
 def parse_product_info(info_path):
@@ -97,19 +113,32 @@ def scan_product_folder(folder_path):
         images=sort_images(image_files),
     )
 
-    info_path = os.path.join(folder_path, INFO_FILENAME)
-    if os.path.isfile(info_path):
+    # نضمّ كل ملفات البيانات الموجودة. أول قيمة غير فارغة تفوز، فلا يمحو ملفٌ
+    # لاحق قيمةً صحيحة قرأها سابقه.
+    merged = {}
+    all_name_lines = []
+    for filename in INFO_FILENAMES:
+        info_path = os.path.join(folder_path, filename)
+        if not os.path.isfile(info_path):
+            continue
         values, name_lines = parse_product_info(info_path)
         product.info_found = True
-        product.style_code = values.get("style code", "")
-        product.product_id = values.get("product id", "")
-        product.added_by = values.get("added by", "")
-        product.date_added = values.get("date added", "")
+        for key, value in values.items():
+            if value and not merged.get(key):
+                merged[key] = value
+        all_name_lines.extend(name for name in name_lines if name)
+
+    if product.info_found:
+        product.style_code = merged.get("style code", "")
+        product.search_code = merged.get("search code", "")
+        product.product_id = merged.get("product id", "")
+        product.added_by = merged.get("added by", "")
+        product.date_added = merged.get("date added", "")
         # أول سطرين "Name:" هما الإنجليزي ثم العربي بنفس ترتيب كتابتهما بالملف الأصلي.
-        if name_lines:
-            product.name_en = name_lines[0]
-        if len(name_lines) > 1:
-            product.name_ar = name_lines[1]
+        if all_name_lines:
+            product.name_en = all_name_lines[0]
+        if len(all_name_lines) > 1:
+            product.name_ar = all_name_lines[1]
 
     return product
 
@@ -141,10 +170,12 @@ def scan_root_folder(root_folder, progress_callback=None):
 
 
 # =========================================================
-# ملاحظة مهمة: عمود "Product ID" غير موجود بالنسخة الحالية من product_info.txt
-# (أُزيل بتحديث سابق بالتطبيق الرئيسي). التحقق الآمن من هوية المنتج قبل التعديل
-# يحتاج هذا الرقم مطابقاً للعلامة (Tag) المكتوبة يدوياً بلوحة سوقيفاي. يوصى بإعادة
-# سطر "Product ID: {next_id}" لدالة كتابة product_info.txt بـ app.py قبل تفعيل
-# خطوة التحقق فعلياً - بدون هذا السطر، يعمل هذا الملف بالبحث بالستايل كود/الاسم
-# فقط دون تحقق إضافي من رقم الـ ID.
+# ملاحظة (مُحدَّثة بعد التحقق من الملفات الفعلية على القرص):
+# الملاحظة السابقة هنا كانت تقول إن "Product ID" أُزيل من التطبيق الرئيسي وإن التحقق
+# من الهوية معطَّل عملياً. الواقع أدق: AlphaCode **ما زال يكتبه**، لكن في ملف آخر
+# اسمه style_code.txt (راجع backend/app/api/routes/upload_routes.py سطر 589)، بينما
+# مجلدات المصممة القديمة تحمل product_info.txt بلا هذا السطر.
+# الآن نقرأ الملفين معاً، فمتى توفّر Product ID عمل التحقق من العلامات (Tags) فعلياً
+# عبر uploader.verify_product_tags، ومتى غاب عاد السلوك للبحث بالستايل كود/الاسم
+# كما كان - بلا تعطّل ولا تحقق كاذب.
 # =========================================================

@@ -183,6 +183,8 @@ class SyncClient:
             return summary
 
         local_units, corrupt = work_log.load_units(logger=logger)
+        # المصالحة تخصّ العمل المنجز وحده - الفشل/التخطّي سجلّ محلي للمراجعة فقط.
+        local_units = [u for u in local_units if u.get("status") == work_log.STATUS_DONE]
         local_by_key = work_log.units_by_key(local_units)
         summary["local_count"] = len(local_by_key)
         summary["corrupt_local_lines"] = corrupt
@@ -313,6 +315,14 @@ class SyncClient:
                     "سُجّلت وحدة العمل محلياً لـ%s؛ المزامنة غير مُعدّة فلم تُرفع بعد "
                     "(ستُرفع تلقائياً بأول مصالحة بعد تفعيل المزامنة).", item_id,
                 )
+            return result
+
+        if status not in (work_log.STATUS_DONE,):
+            # الفشل والتخطّي يُسجَّلان محلياً ليظهر "ما لم يُنجَز"، لكن لا يُدفعان
+            # للأرشيف المشترك: التقرير لا يحتسبهما أصلاً، ودفعهما يملأ الأرشيف
+            # المشترك بصفوف لا تُقرأ. تُرفع لاحقاً بالمصالحة لو احتيج ذلك.
+            if logger:
+                logger.info("سُجّلت وحدة عمل بحالة '%s' لـ%s (محلياً فقط).", status, item_id)
             return result
 
         pushed, error = self.push_unit(unit)
