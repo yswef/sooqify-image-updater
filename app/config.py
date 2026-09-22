@@ -6,6 +6,7 @@
 
 import json
 import os
+import tempfile
 
 APP_NAME = "SooqifyImageUpdater"
 
@@ -60,15 +61,55 @@ def load_config():
 
 
 def save_config(config):
-    """حفظ الإعدادات، ويعيد حساب DeveloperMode تلقائياً من الاسم المُدخل."""
+    """
+    حفظ الإعدادات **بكتابة ذرّية**، ويعيد حساب DeveloperMode تلقائياً من الاسم المُدخل.
+
+    لماذا الذرّية: الحفظ السابق كان يفتح config.json بوضع "w" (فيُفرَّغ فوراً) ثم يكتب.
+    أي انقطاع بين الاثنين (تعطّل، إغلاق قسري، انقطاع كهرباء) يترك ملفاً نصفياً أو
+    فارغاً، و`load_config` يبتلع JSONDecodeError ويرجع للقيم الافتراضية بصمت - أي
+    يفقد RootFolder و SyncServerUrl و SyncToken دفعةً واحدة دون أن يلاحظ أحد.
+    الآن: الكتابة تتم على ملف مؤقت بنفس المجلد ثم os.replace (عملية ذرّية على
+    ويندوز ولينكس) - فالملف القديم يبقى سليماً حتى تكتمل الكتابة الجديدة.
+    """
     merged = load_config()
     merged.update(config)
+    # str() صريحة: الواجهة قد ترسل قيمة غير نصية (رقم/None)، و.strip() عليها كان
+    # يرمي AttributeError ويُسقط الحفظ كاملاً.
     merged["DeveloperMode"] = (
-        merged.get("OperatorName", "").strip().lower() == DEVELOPER_NAME_TRIGGER
+        str(merged.get("OperatorName") or "").strip().lower() == DEVELOPER_NAME_TRIGGER
     )
-    with open(get_config_path(), "w", encoding="utf-8") as f:
-        json.dump(merged, f, ensure_ascii=False, indent=2)
+    _save_json_atomic(get_config_path(), merged)
     return merged
+
+
+def _save_json_atomic(path, payload):
+    """كتابة JSON ذرّية: ملف مؤقت بنفس المجلد + fsync ثم os.replace."""
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    handle = None
+    temp_path = None
+    try:
+        fd, temp_path = tempfile.mkstemp(dir=directory, prefix=".config_", suffix=".tmp")
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.close()
+        handle = None
+        os.replace(temp_path, path)
+        temp_path = None
+    finally:
+        if handle is not None:
+            try:
+                handle.close()
+            except OSError:
+                pass
+        if temp_path and os.path.exists(temp_path):
+            # لا نترك ملفات مؤقتة متراكمة لو فشلت الكتابة.
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 
 def is_setup_complete(config=None):

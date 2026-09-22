@@ -122,13 +122,31 @@ def get_browser_launch_kwargs(user_data_dir_lower, browser_choice):
     return kwargs
 
 
-def play_completion_sound():
-    if os.name == "nt":
-        try:
-            import winsound
-            winsound.MessageBeep(winsound.MB_ICONASTERISK)
-        except Exception:
-            pass
+def _is_inside(candidate_path, parent_path):
+    """هل candidate_path يقع فعلاً داخل parent_path؟ (يمنع الخروج بـ".." أو مسار مطلق آخر)."""
+    if not candidate_path or not parent_path:
+        return False
+    try:
+        candidate = os.path.abspath(candidate_path)
+        parent = os.path.abspath(parent_path)
+        return os.path.commonpath([candidate, parent]) == parent
+    except ValueError:
+        # مسارات على أقراص مختلفة بويندوز - commonpath يرمي ValueError.
+        return False
+
+
+def _unique_destination(dest_path):
+    """
+    يرجّع مساراً غير موجود: dest، ثم dest_2، dest_3... **لا يحذف شيئاً أبداً.**
+    الحد الأعلى يمنع حلقة لا نهائية لو تعذّر إنشاء اسم فريد لأي سبب.
+    """
+    if not os.path.exists(dest_path):
+        return dest_path
+    for suffix in range(2, 1000):
+        candidate = f"{dest_path}_{suffix}"
+        if not os.path.exists(candidate):
+            return candidate
+    raise RuntimeError(f"تعذّر إيجاد اسم أرشيف غير مستخدم لـ{dest_path}")
 
 
 class Api:
@@ -297,8 +315,21 @@ class Api:
     def _run_pipeline(self, selected_paths, dry_run):
         cfg = app_config.load_config()
         root = cfg.get("RootFolder", "")
-        all_products = {p.path: p for p in scanner.scan_root_folder(root)}
-        targets = [all_products[p] for p in selected_paths if p in all_products]
+        # نفحص المجلدات المحددة فقط. سابقاً كانت الشجرة كاملة تُمسح من جديد هنا
+        # (بعد أن مسحها خيط الفحص للتو)، وبآلاف المجلدات كان ذلك تأخيراً محسوساً
+        # قبل أن يفتح المتصفح أصلاً.
+        targets = []
+        for selected in selected_paths or []:
+            # حارس: لا نعالج أي مسار خارج المجلد الرئيسي، حتى لو تغيّر RootFolder
+            # بالإعدادات بين الفحص والتشغيل.
+            if not _is_inside(selected, root):
+                self.logger.warning("تم تجاهل مسار خارج المجلد الرئيسي: %s", selected)
+                continue
+            product = scanner.scan_product_folder(selected)
+            if product:
+                targets.append(product)
+            else:
+                self.logger.warning("تم تجاهل مجلد لم يعد يحتوي صوراً: %s", selected)
 
         batch_limit = cfg.get("BatchLimit", 0)
         if batch_limit and batch_limit > 0:
@@ -343,6 +374,18 @@ class Api:
                 context.set_default_navigation_timeout(NAVIGATION_TIMEOUT_MS)
 
                 page = context.pages[0] if context.pages else context.new_page()
+
+                # تحقق فعلي من الجلسة قبل لمس أي منتج - بدل فشل كل المنتجات واحداً
+                # واحداً ونقلها لمجلدات فشل بسبب جلسة منتهية.
+                session_ok, session_error = uploader.verify_store_session(page, logger=self.logger)
+                if not session_ok:
+                    self.logger.error("%s", session_error)
+                    self._push("run_error", {"error": session_error})
+                    try:
+                        context.close()
+                    except Exception:
+                        pass
+                    return
 
                 for i, product in enumerate(targets, start=1):
                     if self.stop_requested:
@@ -425,50 +468,84 @@ class Api:
                 results["sync"] = reconcile
                 self._push("sync_reconciled", reconcile)
 
-        if cfg.get("SoundOnComplete", True):
-            play_completion_sound()
+        # ملاحظة: نغمة الاكتمال تُشغَّل من الواجهة (playCompletionBeep بـapp.js) عند
+        # استقبال run_finished. كانت تُشغَّل من الطرفين معاً على نفس الحدث فتُسمع
+        # نغمتان. أُبقيت نغمة الواجهة لأنها تعمل على كل المنصات، بينما winsound
+        # كان يعمل على ويندوز وحده.
         self._push("run_finished", results)
 
     def _relocate_product(self, product_path, root_folder, success, error_message=None):
+        """
+        ينقل مجلد المنتج بعد الفراغ منه إلى شجرة الأرشيف، **بلا حذف أي شيء أبداً**
+        وبالحفاظ على مساره النسبي تحت المجلد الرئيسي.
+
+        العيب المُصلَح: كانت الأرشفة مسطّحة باسم المجلد الأخير فقط، ولو وُجد بالوجهة
+        مجلد بنفس الاسم كان يُحذف بـshutil.rmtree ثم يُكتب فوقه. مع تنظيم
+        براند/تاريخ/منتج يصير التصادم شبه مؤكد: BrandA/A1 و BrandB/A1 ينتهيان لنفس
+        الوجهة، فتُمحى صور BrandA نهائياً بلا سؤال ولا تحذير، والسجل يقول "تم النقل
+        بنجاح". أُثبت هذا عملياً.
+
+        الآن: الوجهة تعكس شجرة المصدر (images_uploaded/BrandA/2026-09-01/A1) فلا
+        تصادم أصلاً؛ وإن حصل تصادم رغم ذلك تُضاف لاحقة رقمية بدل الحذف.
+        """
         import shutil
-        folder_name = os.path.basename(product_path)
+
+        folder_name = os.path.basename(os.path.abspath(product_path))
         try:
-            parent_dir = os.path.dirname(os.path.abspath(root_folder))
+            if not _is_inside(product_path, root_folder):
+                # حارس: لا ننقل شيئاً خارج المجلد الرئيسي مهما كان.
+                self.logger.error(
+                    "أُلغي نقل '%s': المسار خارج المجلد الرئيسي (%s).", product_path, root_folder
+                )
+                return False
+
+            root_abs = os.path.abspath(root_folder)
+            parent_dir = os.path.dirname(root_abs)
+            relative_path = os.path.relpath(os.path.abspath(product_path), root_abs)
+
             if success:
-                uploaded_dir = os.path.join(parent_dir, f"{os.path.basename(root_folder)}_uploaded")
-                os.makedirs(uploaded_dir, exist_ok=True)
-                dest_path = os.path.join(uploaded_dir, folder_name)
-                if os.path.exists(dest_path):
-                    shutil.rmtree(dest_path)
-                shutil.move(product_path, dest_path)
-                self.logger.info("تم نقل المجلد بنجاح للأرشفة: %s -> %s", folder_name, uploaded_dir)
-                return True
+                archive_root = os.path.join(parent_dir, f"{os.path.basename(root_abs)}_uploaded")
+                dest_path = os.path.join(archive_root, relative_path)
+                label = "الأرشفة"
             else:
-                category = "أخطاء_أخرى"
-                msg = error_message or ""
-                # تصنيف خطأ المجلد
-                if "بلا كود ستايل أو اسم" in msg:
-                    category = "حذف_مفتاح_البحث"
-                elif "غير موجود بالمتجر" in msg:
-                    category = "غير_موجود_في_المتجر"
-                elif "مطابق للعلامات" in msg or "فشل التحقق" in msg:
-                    category = "عدم_تطابق_الهوية"
-                elif "network/timeout" in msg or "الشبكة" in msg or "فشلت عملية الرفع" in msg:
-                    category = "خطأ_اتصال_بالشبكة"
-                elif "الحفظ لم يُؤكَّد" in msg:
-                    category = "فشل_حفظ_التعديلات"
-                
-                failed_dir = os.path.join(parent_dir, f"{os.path.basename(root_folder)}_failed", category)
-                os.makedirs(failed_dir, exist_ok=True)
-                dest_path = os.path.join(failed_dir, folder_name)
-                if os.path.exists(dest_path):
-                    shutil.rmtree(dest_path)
-                shutil.move(product_path, dest_path)
-                self.logger.info("تم تصنيف المجلد كفاشل ونقله: %s -> %s", folder_name, failed_dir)
-                return True
+                category = self._classify_failure(error_message)
+                archive_root = os.path.join(parent_dir, f"{os.path.basename(root_abs)}_failed", category)
+                dest_path = os.path.join(archive_root, relative_path)
+                label = f"الفشل ({category})"
+
+            dest_path = _unique_destination(dest_path)
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            shutil.move(product_path, dest_path)
+            self.logger.info("تم نقل المجلد لـ%s: %s -> %s", label, folder_name, dest_path)
+            return True
         except Exception as exc:
-            self.logger.error("فشل نقل وأرشفة المجلد %s لـ %s: %s", folder_name, "نجاح" if success else "فشل", exc)
+            self.logger.error(
+                "فشل نقل وأرشفة المجلد %s لـ%s: %s",
+                folder_name, "نجاح" if success else "فشل", exc,
+            )
             return False
+
+    @staticmethod
+    def _classify_failure(error_message):
+        """يصنّف سبب الفشل لمجلد فرعي مفهوم، بدل رمي كل الفشل بسلة واحدة."""
+        msg = error_message or ""
+        if "بلا كود ستايل أو اسم" in msg:
+            return "حذف_مفتاح_البحث"
+        if "غير موجود بالمتجر" in msg:
+            return "غير_موجود_في_المتجر"
+        if "مطابق للعلامات" in msg or "فشل التحقق" in msg:
+            return "عدم_تطابق_الهوية"
+        if "رفع ناقص" in msg:
+            # تصنيف جديد: رُفع بعض الصور فقط ولم يُضغط "اعتماد" - يحتاج مراجعة يدوية،
+            # وصور المنتج بالمتجر ما زالت القديمة سليمة.
+            return "رفع_ناقص"
+        if "صور سابقة تمنع الرفع" in msg or "حذف الصور القديمة يدوياً" in msg:
+            return "صور_قديمة_تمنع_الرفع"
+        if "network/timeout" in msg or "الشبكة" in msg or "فشلت عملية الرفع" in msg:
+            return "خطأ_اتصال_بالشبكة"
+        if "الحفظ لم يُؤكَّد" in msg:
+            return "فشل_حفظ_التعديلات"
+        return "أخطاء_أخرى"
 
 
 def main():
