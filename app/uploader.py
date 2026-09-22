@@ -451,16 +451,33 @@ def process_product_folder(page, sync_client, product, operator_name, dry_run=Fa
         product_id=product.product_id, dry_run=dry_run, operator_name=operator_name, logger=logger
     )
 
-    # تسجيل المزامنة فقط بالوضع التلقائي (بدون dry_run) ولو نجح الرفع
+    # تسجيل وحدة العمل فقط بالوضع التلقائي (بدون dry_run) ولو نجح الرفع.
+    # بوضع المراجعة لا نسجّل شيئاً لأن الاعتماد بيد المشغّل ولم يتأكد الحفظ بعد.
     if result.success and not dry_run:
-        reported = sync_client.report_upload(
-            product.style_code or product.folder_name, 
-            result.images_uploaded, 
-            operator_name, 
-            product_id=product.product_id,
-            logger=logger
+        item_id = product.style_code or product.folder_name
+        outcome = sync_client.record_images_updated(
+            item_id,
+            result.images_uploaded,
+            operator_name,
+            extra={"product_id": product.product_id or "", "folder": product.folder_name},
+            logger=logger,
         )
-        if reported and logger:
-            logger.info("تم تسجيل %s صورة بتقرير المزامنة لـ %s.", result.images_uploaded, product.style_code or product.folder_name)
+        if logger:
+            if outcome["recorded"] and outcome["pushed"]:
+                logger.info(
+                    "سُجّلت وحدة عمل (%s صورة) ورُفعت لخادم المزامنة لـ%s.",
+                    result.images_uploaded, item_id,
+                )
+            elif outcome["recorded"]:
+                logger.info(
+                    "سُجّلت وحدة عمل (%s صورة) محلياً لـ%s - ستُرفع بأول مصالحة كاملة.",
+                    result.images_uploaded, item_id,
+                )
+            else:
+                # لا تسجيل محلي ولا رفع = عمل لن يظهر بأي تقرير. يجب أن يُرى.
+                logger.error(
+                    "لم تُسجَّل وحدة العمل لـ%s لا محلياً ولا على الخادم - هذا العمل "
+                    "لن يظهر بالتقرير الموحّد. راجع صلاحيات مجلد الإعدادات.", item_id,
+                )
 
     return result

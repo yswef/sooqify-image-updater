@@ -37,8 +37,15 @@ class ProductFolder:
 
 
 def parse_product_info(info_path):
-    """يقرأ product_info.txt ويرجّع القيم كقاموس بسيط، بلا حساسية لترتيب الأسطر."""
+    """
+    يقرأ product_info.txt ويرجّع (القيم كقاموس، قائمة أسطر "Name" بترتيبها الأصلي).
+    قراءة واحدة للملف تكفي للاثنين: سابقاً كان الملف يُفتح مرة ثانية داخل list
+    comprehension بـscan_product_folder بلا with ولا close - مقبض ملف مسرَّب لكل
+    منتج، وبفحص آلاف المجلدات قد يصطدم بحد المقابض المفتوحة بالنظام، وعلى ويندوز
+    يبقى الملف مقفولاً فيفشل نقل مجلد المنتج بعد الرفع.
+    """
     values = {}
+    name_lines = []
     try:
         with open(info_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -49,10 +56,12 @@ def parse_product_info(info_path):
                 value = match.group(2).strip()
                 if value == "-":
                     value = ""
+                if key == "name":
+                    name_lines.append(value)
                 values[key] = value
     except OSError:
         pass
-    return values
+    return values, name_lines
 
 
 def sort_images(image_filenames):
@@ -90,18 +99,13 @@ def scan_product_folder(folder_path):
 
     info_path = os.path.join(folder_path, INFO_FILENAME)
     if os.path.isfile(info_path):
-        values = parse_product_info(info_path)
+        values, name_lines = parse_product_info(info_path)
         product.info_found = True
         product.style_code = values.get("style code", "")
         product.product_id = values.get("product id", "")
         product.added_by = values.get("added by", "")
         product.date_added = values.get("date added", "")
         # أول سطرين "Name:" هما الإنجليزي ثم العربي بنفس ترتيب كتابتهما بالملف الأصلي.
-        name_lines = [
-            match.group(2).strip()
-            for line in open(info_path, "r", encoding="utf-8")
-            if (match := INFO_LINE_PATTERN.match(line)) and match.group(1).strip().lower() == "name"
-        ]
         if name_lines:
             product.name_en = name_lines[0]
         if len(name_lines) > 1:

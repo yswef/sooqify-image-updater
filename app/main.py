@@ -26,6 +26,7 @@ import config as app_config
 import scanner
 import sync_client as sync_client_module
 import uploader
+import work_log
 from logger_setup import setup_logger, print_startup_banner
 
 UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
@@ -264,6 +265,35 @@ class Api:
         self.stop_requested = True
         return {"success": True}
 
+    def reconcile_sync(self):
+        """
+        مصالحة كاملة فورية بطلب المشغّل (نظير /api/sync/reconcile بـAlphaCode).
+        ترجّع أرقاماً صريحة: العدد المحلي، العدد على الخادم، والفارق بينهما.
+        """
+        cfg = app_config.load_config()
+        sync = sync_client_module.SyncClient(cfg.get("SyncServerUrl", ""), cfg.get("SyncToken", ""))
+        if not sync.configured:
+            return {"success": False, "error": "المزامنة غير مُعدّة (رابط الخادم أو كود المزامنة فاضٍ)."}
+        try:
+            return sync.reconcile_work_units(logger=self.logger)
+        except Exception as exc:
+            self.logger.error("فشلت المصالحة اليدوية: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def get_sync_status(self):
+        """حالة المزامنة المحلية: آخر مصالحة، آخر خطأ، وآخر فارق عدد معلَن."""
+        state = work_log.load_sync_state()
+        units, corrupt = work_log.load_units()
+        return {
+            "success": True,
+            "local_units": len(work_log.units_by_key(units)),
+            "corrupt_local_lines": corrupt,
+            "last_reconcile_at": state.get("last_reconcile_at") or "",
+            "last_error": state.get("last_error") or "",
+            "last_delta": state.get("last_delta"),
+            "last_in_sync": state.get("last_in_sync"),
+        }
+
     def _run_pipeline(self, selected_paths, dry_run):
         cfg = app_config.load_config()
         root = cfg.get("RootFolder", "")
@@ -381,16 +411,19 @@ class Api:
             self._push("run_error", {"error": str(exc)})
             return
 
-        # إرسال تقرير المزامنة الإجمالي للدفعة (الـ Batch Run Summary) — فقط الوضع التلقائي
+        # مصالحة كاملة لوحدات العمل بنهاية الدفعة (شفاء ذاتي) — فقط الوضع التلقائي.
+        # تُستدعى تلقائياً، لأن فجوة AlphaCode بقيت شهراً بسبب مصالحة موجودة لا يستدعيها شيء.
+        # فارق العدد بين المحلي والبعيد يُعلَن للمشغّل صراحةً بدل ابتلاعه بصمت.
         if not dry_run and sync.configured:
-            sync.report_batch_summary(
-                cfg.get("OperatorName", ""),
-                len(results["success"]),
-                len(results["failed"]),
-                len(results["skipped"]),
-                total_images,
-                logger=self.logger
-            )
+            try:
+                reconcile = sync.auto_reconcile_if_due(logger=self.logger)
+            except Exception as exc:
+                # فشل المصالحة لا يُبطل نجاح الدفعة نفسها، لكنه يُعلَن ولا يُبتلع.
+                self.logger.warning("تعذّرت مصالحة وحدات العمل بنهاية الدفعة: %s", exc)
+                reconcile = {"success": False, "error": str(exc)}
+            if reconcile:
+                results["sync"] = reconcile
+                self._push("sync_reconciled", reconcile)
 
         if cfg.get("SoundOnComplete", True):
             play_completion_sound()

@@ -399,6 +399,23 @@ window.onBackendEvent = function (msg) {
         setRunningState(false);
         log(`خطأ: ${payload.error}`, "error");
         runScan();
+    } else if (event === "sync_reconciled") {
+        // فارق العدد بين المحلي والبعيد يُعرض صراحةً. الفشل الصامت بمشروع AlphaCode
+        // كان بالضبط أن المزامنة تقول "نجحت" وثلث البيانات مفقود - فهنا "متطابقة"
+        // لا تُكتب إلا لو كان الفارق صفراً ولم يبقَ شيء للرفع.
+        if (!payload.success) {
+            log(`تعذّرت مزامنة سجل العمل: ${payload.error}`, "error");
+        } else if (payload.in_sync) {
+            log(`سجل العمل متطابق مع الخادم (${payload.local_count} وحدة، الفارق 0).`, "success");
+        } else {
+            log(
+                `⚠️ سجل العمل غير متطابق: محلي ${payload.local_count} · خادم ${payload.remote_count} · ` +
+                `الفارق ${payload.delta} · أُضيف محلياً ${payload.pulled_in} · رُفع ${payload.pushed} · ` +
+                `فشل رفع ${payload.push_failed} · باقٍ ${payload.remaining_to_push}. ` +
+                `لا تعتمد التقرير كمكتمل قبل أن يصير الفارق صفراً.`,
+                "error"
+            );
+        }
     } else if (event === "waiting_approval") {
         log(`⏳ بانتظار اعتمادك اليدوي لـ ${payload.folder} من المتصفح... (${payload.index}/${payload.total})`);
     } else if (event === "login_ready") {
@@ -420,8 +437,12 @@ function updateProgress(current, total) {
 }
 
 function markProductStatus(folderName, status) {
+    // مطابقة اسم المجلد الأخير بالمسار تماماً. كانت `dataset.path.includes(folderName)`
+    // وهي مطابقة جزئية: مجلد اسمه "12" يطابق أي مسار فيه "12" بأي موضع (مثل
+    // "...6-09-12\A99")، فتُلوَّن حالة منتج آخر غير الذي انتهى فعلاً.
+    const lastSegment = (path) => String(path || "").split(/[\\/]/).filter(Boolean).pop() || "";
     const row = Array.from(document.querySelectorAll(".product-row"))
-        .find(r => r.querySelector(".name")?.textContent && r.dataset.path.includes(folderName));
+        .find(r => lastSegment(r.dataset.path) === folderName);
     if (row) {
         row.classList.remove("status-success", "status-failed", "status-preview");
         row.classList.add(`status-${status}`);
