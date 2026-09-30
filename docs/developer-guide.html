@@ -1,277 +1,846 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="دليل تقني مفصل لمطوري Sooqify Image Updater: تدفق التنفيذ، الدوال، الإعدادات، التكاملات، العيوب والاختبارات.">
     <title>دليل المطوّر — Sooqify Image Updater</title>
     <style>
         :root {
-            --ink: #07022A;
-            --surface-alt: #F6F5FC;
-            --secondary: #C5FFE7;
-            --accent: #53F5FF;
-            --border: rgba(7, 2, 42, .12);
+            color-scheme: light;
+            --ink: #171536;
+            --muted: #64627b;
+            --surface: #ffffff;
+            --surface-alt: #f4f3fa;
+            --line: #dedcec;
+            --accent: #2e77d0;
+            --accent-soft: #e9f2ff;
+            --green: #147a51;
+            --green-soft: #e9f8f1;
+            --amber: #946000;
+            --amber-soft: #fff5dc;
+            --red: #a42e36;
+            --red-soft: #fff0f0;
+            --code: #17162c;
+            --code-ink: #d9f3e9;
+            --shadow: 0 12px 35px rgba(23, 21, 54, .08);
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
 
         body {
             margin: 0;
-            font-family: "Segoe UI", Tahoma, sans-serif;
             background: var(--surface-alt);
             color: var(--ink);
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
             line-height: 1.8;
         }
 
-        header {
-            background: linear-gradient(135deg, var(--ink), #171052);
-            color: #fff;
-            padding: 40px 24px;
+        header.hero {
+            padding: 36px 20px 30px;
             text-align: center;
+            color: #fff;
+            background: radial-gradient(circle at 15% 0%, #37356f 0, transparent 34%),
+                        linear-gradient(135deg, #11102d, #25235b);
         }
 
-        header .mark {
+        .mark {
+            display: grid;
             width: 56px;
             height: 56px;
-            border-radius: 16px;
-            background: var(--ink);
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
+            place-items: center;
             margin: 0 auto 12px;
-            border: 2px solid var(--accent);
+            border: 2px solid #7edcff;
+            border-radius: 16px;
+            color: #7edcff;
+            font-weight: 900;
+            letter-spacing: .04em;
         }
 
-        header h1 {
-            margin: 0 0 6px;
-            font-size: 24px;
+        .hero h1 { margin: 0 0 4px; font-size: clamp(22px, 3vw, 31px); }
+        .hero p { margin: 4px 0; opacity: .84; }
+        .hero .meta { font-size: 12px; color: #d4d3e5; }
+
+        .shell { max-width: 1240px; margin: 0 auto; padding: 22px 18px 60px; }
+
+        .notice {
+            margin: 0 0 18px;
+            padding: 13px 16px;
+            border: 1px solid #e4c878;
+            border-radius: 12px;
+            background: var(--amber-soft);
+            color: #533d0d;
         }
 
-        header p {
-            margin: 0;
-            opacity: .75;
+        .notice strong { color: #392800; }
+
+        .tabs-wrap {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            margin: 0 -4px 20px;
+            padding: 7px 4px;
+            background: rgba(244, 243, 250, .96);
+            backdrop-filter: blur(10px);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 7px;
+            overflow-x: auto;
+            padding: 4px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--surface);
+            box-shadow: 0 4px 16px rgba(23, 21, 54, .04);
+            scrollbar-width: thin;
+        }
+
+        .tab {
+            flex: 0 0 auto;
+            min-height: 42px;
+            padding: 8px 13px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
             font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
         }
 
-        main {
-            max-width: 780px;
-            margin: 0 auto;
-            padding: 32px 24px 80px;
-        }
+        .tab:hover { background: var(--surface-alt); color: var(--ink); }
+        .tab[aria-selected="true"] { border-color: #c5d9f3; background: var(--accent-soft); color: #164e91; }
+        .tab:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #78b7ff; outline-offset: 2px; }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
 
         .card {
-            background: #fff;
+            margin: 0 0 16px;
+            padding: 22px clamp(17px, 3vw, 28px);
+            border: 1px solid var(--line);
             border-radius: 16px;
-            padding: 24px 28px;
-            margin-bottom: 20px;
-            box-shadow: 0 6px 24px rgba(7, 2, 42, .06);
-            border: 1px solid var(--border);
+            background: var(--surface);
+            box-shadow: var(--shadow);
         }
 
-        .card h2 {
-            font-size: 16px;
-            margin: 0 0 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .card h2 { margin: 0 0 11px; font-size: 20px; line-height: 1.5; }
+        .card h3 { margin: 20px 0 8px; font-size: 16px; }
+        .card h4 { margin: 15px 0 6px; font-size: 14px; }
+        .card p, .card li { color: #36354a; }
+        .card p:last-child { margin-bottom: 0; }
+        .card ul, .card ol { padding-inline-start: 24px; }
+        .card li + li { margin-top: 5px; }
 
-        .card h2 .num {
-            width: 26px;
-            height: 26px;
-            border-radius: 8px;
-            background: var(--secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 800;
-        }
+        .lead { color: var(--muted) !important; font-size: 15px; }
+        .small { color: var(--muted) !important; font-size: 12px; }
 
-        .card p,
-        .card li {
-            font-size: 13.5px;
-            color: #333;
+        .callout {
+            margin: 14px 0;
+            padding: 13px 15px;
+            border-inline-start: 4px solid var(--accent);
+            border-radius: 9px;
+            background: var(--accent-soft);
         }
+        .callout.warn { border-color: #df9f19; background: var(--amber-soft); }
+        .callout.danger { border-color: var(--red); background: var(--red-soft); }
+        .callout.success { border-color: var(--green); background: var(--green-soft); }
 
-        .card ul,
-        .card ol {
-            margin: 8px 0;
-            padding-inline-start: 22px;
-        }
-
-        code {
-            background: var(--surface-alt);
-            padding: 2px 6px;
-            border-radius: 6px;
-            font-family: Consolas, monospace;
-            font-size: 12.5px;
-            direction: ltr;
+        .badge {
             display: inline-block;
+            margin: 2px 3px;
+            padding: 1px 8px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: #faf9fd;
+            color: #4f4d66;
+            font-size: 11px;
+            font-weight: 700;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .badge.high { border-color: #efb8bc; background: var(--red-soft); color: var(--red); }
+        .badge.medium { border-color: #ead29b; background: var(--amber-soft); color: var(--amber); }
+        .badge.confirmed { border-color: #b7dfcc; background: var(--green-soft); color: var(--green); }
+
+        code, kbd {
+            direction: ltr;
+            unicode-bidi: isolate;
+            border-radius: 5px;
+            background: #f0eff6;
+            padding: 1px 5px;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: .92em;
         }
 
         pre {
-            background: var(--ink);
-            color: var(--secondary);
-            padding: 14px 16px;
+            overflow: auto;
+            margin: 10px 0 14px;
+            padding: 15px 17px;
+            border: 1px solid #34324e;
+            border-radius: 11px;
+            background: var(--code);
+            color: var(--code-ink);
+            direction: ltr;
+            text-align: left;
+            unicode-bidi: plaintext;
+            font: 12px/1.65 Consolas, "Courier New", monospace;
+            tab-size: 4;
+        }
+
+        .table-wrap { overflow-x: auto; margin: 10px 0 14px; border-radius: 9px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        th, td { padding: 9px 10px; border: 1px solid var(--line); text-align: right; vertical-align: top; }
+        th { background: #f1f0f7; color: #292742; white-space: nowrap; }
+        td code { word-break: break-word; }
+        .function-table td:first-child { min-width: 175px; }
+        .function-table td:nth-child(2) { min-width: 205px; }
+
+        .ltr { direction: ltr; text-align: left; unicode-bidi: isolate; }
+        .tree { white-space: pre; overflow: auto; direction: ltr; text-align: left; font: 12px/1.65 Consolas, monospace; }
+        details { margin: 9px 0; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+        summary { padding: 10px 13px; color: #2c2a48; font-weight: 700; cursor: pointer; }
+        details > div { padding: 0 13px 12px; }
+
+        .flow { counter-reset: step; list-style: none; padding: 0 !important; }
+        .flow li { position: relative; min-height: 38px; padding: 2px 48px 15px 0; }
+        .flow li::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            inset-inline-start: auto;
+            inset-inline-end: 0;
+            top: 0;
+            display: grid;
+            width: 31px;
+            height: 31px;
+            place-items: center;
             border-radius: 10px;
-            overflow-x: auto;
-            font-size: 12.5px;
-            direction: ltr;
-            text-align: left;
+            background: var(--accent-soft);
+            color: #17579b;
+            font-weight: 800;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
+        footer { padding: 24px 10px 4px; text-align: center; color: #77758b; font-size: 12px; }
+
+        @media (max-width: 700px) {
+            .shell { padding-inline: 10px; }
+            .card { padding: 17px 14px; }
+            th, td { padding: 7px; }
+            .tabs-wrap { top: 0; }
         }
 
-        th,
-        td {
-            border: 1px solid var(--border);
-            padding: 8px 10px;
-            text-align: right;
-        }
-
-        th {
-            background: var(--surface-alt);
-        }
-
-        .tree {
-            font-family: Consolas, monospace;
-            font-size: 12.5px;
-            direction: ltr;
-            text-align: left;
-            white-space: pre;
-        }
-
-        footer {
-            text-align: center;
-            padding: 24px;
-            font-size: 12px;
-            color: #999;
+        @media print {
+            body { background: #fff; }
+            .tabs-wrap { display: none; }
+            .panel, .panel.active { display: block !important; }
+            .card { box-shadow: none; break-inside: avoid; }
+            header.hero { print-color-adjust: exact; }
         }
     </style>
 </head>
-
 <body>
-
-    <header>
-        <div class="mark">SIU</div>
+    <header class="hero">
+        <div class="mark" aria-hidden="true">SIU</div>
         <h1>Sooqify Image Updater — دليل المطوّر</h1>
-        <p>تطوير: يوسف الحمزي</p>
+        <p>دليل مبني على قراءة هذا الـ checkout كما هو، وليس على افتراض أن الموقع أو إضافة AlphaCode مطابقة لتعليقات الكود.</p>
+        <p class="meta">مراجعة المصدر: 2026-09-30 · الملفات المرجعية: <code>app/</code> و<code>tests/</code> · واجهة الدليل مستقلة ولا تحتاج مكتبات خارجية</p>
     </header>
 
-    <main>
-
-        <div class="card">
-            <h2><span class="num">1</span> هيكل المشروع</h2>
-            <div class="tree">sooqify-image-updater/
-                ├── app/
-                │ ├── main.py نقطة التشغيل + واجهة pywebview + خيط الرفع الخلفي
-                │ ├── config.py إعدادات أول تشغيل + اكتشاف وضع المطوّر
-                │ ├── scanner.py فحص المجلدات وقراءة product_info.txt
-                │ ├── uploader.py رفع الصور + البحث الآمن والتحقق من الهوية
-                │ ├── sync_client.py التواصل مع sync.php (نفس نظام AlphaCode)
-                │ ├── logger_setup.py سجل طرفية ملوّن
-                │ └── ui/ index.html + styles.css + app.js
-                ├── dev_tools/ أداة فحص سلوك الرفع (وضع المطوّر فقط)
-                ├── build/ ملف PyInstaller
-                ├── .github/workflows/ بناء exe تلقائي على GitHub Actions
-                ├── docs/ هذا الدليل + دليل المستخدم
-                └── assets/ أيقونة التطبيق</div>
+    <main class="shell">
+        <div class="notice">
+            <strong>تنبيه مهم قبل أي تشغيل حي:</strong>
+            في الواجهة، خانة «وضع المراجعة» غير محددة افتراضياً، وكل المنتجات تُحدَّد تلقائياً بعد الفحص؛ والرفع الآلي ينقل المجلدات افتراضياً. لذلك زر «ابدأ» قد يعني رفعاً حقيقياً وأرشفة، وليس معاينة. لا تعتمد على كلمة Dry Run وحدها قبل فهم السلوك أدناه.
         </div>
 
-        <div class="card">
-            <h2><span class="num">2</span> وضع المطوّر</h2>
-            <p>
-                يُفعَّل تلقائياً لما يكون <code>OperatorName</code> بالإعدادات يساوي
-                <code>yousef</code> (بأي حالة أحرف). يظهر شارة "وضع المطوّر" بأعلى الواجهة.
-            </p>
-            <p>الحد الأقصى للدفعة (<code>BatchLimit</code>) الافتراضي <strong>بلا نهاية</strong> — يُضبط من شاشة
-                الإعدادات.</p>
+        <div class="tabs-wrap">
+            <nav class="tabs" role="tablist" aria-label="أقسام دليل المطوّر">
+                <button class="tab" id="tab-overview" role="tab" aria-controls="panel-overview" aria-selected="true" tabindex="0" data-panel="panel-overview">1 · ما الأداة؟</button>
+                <button class="tab" id="tab-functions" role="tab" aria-controls="panel-functions" aria-selected="false" tabindex="-1" data-panel="panel-functions">2 · الدوال والاستدعاءات</button>
+                <button class="tab" id="tab-defaults" role="tab" aria-controls="panel-defaults" aria-selected="false" tabindex="-1" data-panel="panel-defaults">3 · المتغيرات والافتراضيات</button>
+                <button class="tab" id="tab-integrations" role="tab" aria-controls="panel-integrations" aria-selected="false" tabindex="-1" data-panel="panel-integrations">4 · الموقع والمزامنة</button>
+                <button class="tab" id="tab-storage" role="tab" aria-controls="panel-storage" aria-selected="false" tabindex="-1" data-panel="panel-storage">5 · الملفات والخصوصية</button>
+                <button class="tab" id="tab-defects" role="tab" aria-controls="panel-defects" aria-selected="false" tabindex="-1" data-panel="panel-defects">6 · العيوب والمخاطر</button>
+                <button class="tab" id="tab-history" role="tab" aria-controls="panel-history" aria-selected="false" tabindex="-1" data-panel="panel-history">7 · المشاكل والقيود الثابتة</button>
+                <button class="tab" id="tab-style" role="tab" aria-controls="panel-style" aria-selected="false" tabindex="-1" data-panel="panel-style">8 · أسلوب التطوير</button>
+                <button class="tab" id="tab-tests" role="tab" aria-controls="panel-tests" aria-selected="false" tabindex="-1" data-panel="panel-tests">9 · الاختبارات والبناء</button>
+                <button class="tab" id="tab-questions" role="tab" aria-controls="panel-questions" aria-selected="false" tabindex="-1" data-panel="panel-questions">10 · أسئلة تحتاج تأكيداً</button>
+            </nav>
         </div>
 
-        <div class="card">
-            <h2><span class="num">3</span> المحددات الحقيقية (Selectors) — صفحة سوقيفاي</h2>
-            <table>
-                <tr>
-                    <th>العنصر</th>
-                    <th>المحدد</th>
-                </tr>
-                <tr>
-                    <td>الصورة الرئيسية</td>
-                    <td><code>#customFileEg1</code></td>
-                </tr>
-                <tr>
-                    <td>صور المعرض</td>
-                    <td><code>input.spartan_image_input</code> (آخر حقل فاضٍ دائماً)</td>
-                </tr>
-                <tr>
-                    <td>زر الحفظ</td>
-                    <td>زر بنص "اعتماد"، <code>type=submit</code></td>
-                </tr>
-                <tr>
-                    <td>صندوق البحث (القائمة)</td>
-                    <td><code>#datatableSearch</code></td>
-                </tr>
-                <tr>
-                    <td>عمود التحقق (العرض)</td>
-                    <td>عمود "العلامات" بجدول التسعير</td>
-                </tr>
-            </table>
-            <p>الحفظ الناجح يُعيد التوجيه لـ <code>/admin/item/list</code> — هذا دليل النجاح المعتمد بالكود.</p>
-        </div>
+        <section class="panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+            <article class="card">
+                <h2>ما الذي تفعله الأداة بالضبط؟</h2>
+                <p class="lead">تطبيق سطح مكتب Python بواجهة HTML/JavaScript عبر PyWebView. يفحص مجلداً محلياً، يربط كل مجلد صور بمنتج في لوحة سوقيفاي باستخدام Playwright، يعبّئ حقول الصور، ثم إمّا يترك النموذج للمراجعة اليدوية أو يضغط «اعتماد» آلياً ويسجّل النتيجة محلياً وبـAlphaCode إذا كانت المزامنة متاحة.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>الطبقة</th><th>الملفات</th><th>المسؤولية</th></tr></thead>
+                        <tbody>
+                            <tr><td>واجهة المستخدم</td><td><code>app/ui/index.html</code>، <code>styles.css</code>، <code>app.js</code></td><td>الإعداد، اختيار المنتجات، إرسال أوامر PyWebView، وعرض الأحداث.</td></tr>
+                            <tr><td>التنسيق والتشغيل</td><td><code>app/main.py</code></td><td>كائن API المعروض للواجهة، الخيوط الخلفية، جلسة المتصفح، دورة معالجة الدفعة، ونقل المجلدات.</td></tr>
+                            <tr><td>قراءة الملفات</td><td><code>app/scanner.py</code></td><td>اكتشاف الصور وملفات بيانات المنتج وتحويلها إلى <code>ProductFolder</code>.</td></tr>
+                            <tr><td>الموقع</td><td><code>app/uploader.py</code></td><td>البحث، محاولة التحقق من هوية المنتج، اختيار ملفات الصور، واعتماد النموذج.</td></tr>
+                            <tr><td>سجل العمل/المزامنة</td><td><code>app/work_log.py</code>، <code>app/sync_client.py</code></td><td>سجل JSONL محلي وعقد HTTP مع <code>sync.php</code>.</td></tr>
+                            <tr><td>الإعداد والسجل</td><td><code>app/config.py</code>، <code>app/logger_setup.py</code></td><td>ملفات المستخدم، الحفظ الذري، الطرفية وملفات السجل الدوّارة.</td></tr>
+                            <tr><td>الاختبارات والبناء</td><td><code>tests/</code>، <code>build/</code>، <code>.github/workflows/</code></td><td>اختبارات وحدات ومحاكاة، PyInstaller، وبناء Windows على GitHub Actions.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p><strong>ملاحظة عن شجرة المستودع:</strong> لا يوجد في هذا الـ checkout مجلد <code>dev_tools/</code> رغم أن <code>.gitignore</code> والدليل السابق وREADME يذكرونه. وضع المطوّر الحالي يغيّر قيمة <code>DeveloperMode</code> ويعرض شارة فقط؛ لم أجد أداة فحص/Probe داخله.</p>
+            </article>
 
-        <div class="card">
-            <h2><span class="num">4</span> مشكلة بروفايل Chrome</h2>
-            <p>
-                Chrome يرفض تفعيل التحكم البرمجي (CDP) على مجلد البروفايل الافتراضي مباشرة
-                (قيد أمني من جوجل: <em>"DevTools remote debugging requires a non-default data
-                    directory"</em>). الحل المطبَّق بـ <code>main.py</code>: نسخ بيانات البروفايل
-                لمجلد مؤقت (بدون Cache لتسريع النسخ) وتشغيل Playwright على النسخة.
-            </p>
-        </div>
+            <article class="card">
+                <h2>تدفق المنتج من الضغط إلى النتيجة</h2>
+                <ol class="flow">
+                    <li><strong>بدء التطبيق:</strong> <code>main()</code> يهيئ السجل، ينشئ نافذة PyWebView بواجهة <code>app/ui/index.html</code>، ويكشف <code>Api</code> إلى JavaScript.</li>
+                    <li><strong>تحميل الإعداد:</strong> مستمع <code>pywebviewready</code> في <code>app.js</code> يستدعي <code>get_config()</code>. إذا اكتمل الإعداد، يفتح الشاشة الرئيسية ويطلب فحصاً.</li>
+                    <li><strong>الفحص:</strong> <code>scan_products()</code> ينشئ خيطاً خلفياً، و<code>scanner.scan_root_folder()</code> يمشي تحت المجلد الجذر. كل مجلد يحتوي صوراً مباشرة قد يُعتبر منتجاً.</li>
+                    <li><strong>تحديد المنتجات:</strong> عند وصول <code>scan_finished</code>، الواجهة تضع كل المسارات في <code>state.selected</code> افتراضياً. يستطيع المستخدم إلغاء الاختيار يدوياً.</li>
+                    <li><strong>بدء الدفعة:</strong> الواجهة ترسل المسارات وقيمة مربع المراجعة إلى <code>start_run()</code>. <code>_run_pipeline()</code> يعيد فحص كل مسار، ويرفض المسار خارج الجذر، ثم يطبّق <code>BatchLimit</code>.</li>
+                    <li><strong>جلسة المتجر:</strong> يفتح Playwright بروفايل التطبيق الدائم، ثم <code>verify_store_session()</code> يفتح قائمة المنتجات ويتأكد من عنوان/حقل البحث.</li>
+                    <li><strong>البحث والتحرير:</strong> <code>process_product_folder()</code> يبحث أولاً بـ<code>style_code</code>، وإلا بالاسم الإنجليزي/العربي ثم اسم المجلد. يفتح رابط العرض ثم رابط التعديل، ويرسل <code>product_id</code> إلى فحص Tags إن كان متاحاً.</li>
+                    <li><strong>اختيار الملفات:</strong> الصورة الأولى حسب ترتيب <code>sort_images()</code> تُعامل كرئيسية والبقية للمعرض. وجود صور معرض قديمة يوقف العملية؛ الكود الحالي لا يحذفها آلياً.</li>
+                    <li><strong>المراجعة أو الاعتماد:</strong> وضع المراجعة يعبّئ حقول المتصفح ولا يضغط «اعتماد». الوضع الآلي يضغط الزر وينتظر الانتقال إلى <code>/admin/item/list</code>.</li>
+                    <li><strong>السجل والنقل:</strong> في التشغيل الآلي فقط، تُسجّل النتيجة محلياً؛ وحدة <code>done</code> تُدفع فوراً إن أمكن. ثم قد يُنقل مجلد المنتج إلى شجرة <code>_uploaded</code> أو <code>_failed</code>.</li>
+                    <li><strong>المصالحة:</strong> في نهاية التشغيل الآلي، قد يسحب التطبيق كل وحدات العمل ويدفع الناقص إذا مرّت 6 ساعات أو لم توجد مصالحة سابقة.</li>
+                </ol>
+                <div class="callout warn"><strong>المراجعة ليست محاكاة بلا آثار مؤكدة:</strong> الكود يستدعي <code>set_input_files()</code> فعلياً على الحقول. لا يضغط زر النموذج النهائي، لكن لا نعرف من المستودع وحده إن إضافة الصور ترفع الملفات إلى الخادم فور اختيارها عبر AJAX. تحقّق من الإضافة قبل اعتبار وضع المراجعة آمناً تماماً.</div>
+            </article>
 
-        <div class="card">
-            <h2><span class="num">5</span> البناء إلى exe</h2>
-            <p>لا بناء محلي يدوي — GitHub Actions يبنيه تلقائياً على Windows حقيقي عند أي رفعة لـ <code>main</code> أو
-                أي Tag يبدأ بـ <code>v</code>:</p>
-            <pre>git tag v1.0.0
-git push origin v1.0.0</pre>
-            <p>الملف الناتج يظهر بصفحة <strong>Releases</strong> بالمستودع، جاهز للتنزيل مباشرة.</p>
-        </div>
+            <article class="card">
+                <h2>الفرق بين وضع المراجعة والوضع الآلي</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>السلوك</th><th>وضع المراجعة <code>dry_run=True</code></th><th>الوضع الآلي <code>dry_run=False</code></th></tr></thead>
+                        <tbody>
+                            <tr><td>المتصفح</td><td>مرئي</td><td>Headless دائماً في الكود الحالي</td></tr>
+                            <tr><td>تعبئة حقول الصور</td><td>نعم، باستخدام الملفات الحقيقية</td><td>نعم</td></tr>
+                            <tr><td>ضغط «اعتماد»</td><td>لا؛ ينتظر المستخدم حتى 5 دقائق للانتقال للقائمة</td><td>نعم؛ ينتظر الانتقال حتى 30 ثانية</td></tr>
+                            <tr><td>تسجيل وحدة العمل</td><td>لا</td><td>نعم؛ النجاح والفشل يسجّلان محلياً، والنجاح فقط يُدفع</td></tr>
+                            <tr><td>نقل مجلد المنتج</td><td>لا</td><td>نعم افتراضياً عند <code>MoveFoldersAfterUpload=True</code></td></tr>
+                            <tr><td>المزامنة الكاملة التلقائية</td><td>لا</td><td>نعم إذا كانت URL وToken موجودتين وحان الموعد</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="callout danger"><strong>اختلاف واجهة/Backend:</strong> وسيط <code>Api.start_run()</code> افتراضه <code>dry_run=True</code>، لكن الواجهة ترسل قيمة checkbox صراحةً؛ والـcheckbox في HTML غير محدد. لذلك الضغط من الواجهة يبدأ الوضع الآلي افتراضياً. كذلك <code>Headless</code> المحفوظ بالإعداد لا يغيّر قرار المتصفح في مسار التشغيل.</div>
+            </article>
+        </section>
 
-        <div class="card">
-            <h2><span class="num">6</span> حذف الصور السابقة (Gallery)</h2>
-            <p>
-                في صفحة تعديل المنتج، واجهة <code>Spartan Multi Image Picker</code> تعرض الصور السابقة كعناصر تحتوي على
-                زر حذف.
-                لحذف الصور السابقة قبل الرفع الجديد بدون التكرار وإضافة صور متراكمة، يتم البحث عن جميع العناصر المطابقة
-                للمُحدّد <code>a.spartan_remove_row</code>، ويتم النقر عليها برمجيًا. وبما أن هذه العملية تتم عبر AJAX
-                أو إعادة توجيه محلية داخل الإضافة، يجب إضافة مهلة قصيرة جداً (مثلاً 100-200ms) بعد كل نقرة للسماح لـ DOM
-                بالتحديث ولتجنب أخطاء الشبكة.
-            </p>
-        </div>
+        <section class="panel" id="panel-functions" role="tabpanel" aria-labelledby="tab-functions" tabindex="0" hidden>
+            <article class="card">
+                <h2>خريطة الدوال: الإعداد والسجل والفحص</h2>
+                <p class="small">أرقام الأسطر تخص المصدر الموجود وقت إعداد هذا الدليل؛ أعد فحصها بعد أي تغييرات. «المستدعي» يبيّن مسار الاستدعاء المعروف، لا كل استدعاء اختباري.</p>
+                <h3><code>app/config.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل / ملاحظة</th></tr></thead><tbody>
+                    <tr><td><code>get_config_dir()</code><br>32–37</td><td><code>get_config_path</code>، <code>get_log_dir</code>، <code>main.get_automation_profile_dir</code>، ومسارات <code>work_log</code></td><td>ينشئ مجلد بيانات المستخدم: <code>%APPDATA%/SooqifyImageUpdater</code> إن توفر APPDATA، وإلا مجلد المنزل.</td></tr>
+                    <tr><td><code>get_config_path()</code><br>40–41</td><td><code>load_config</code>، <code>save_config</code></td><td>يعيد مسار <code>config.json</code>.</td></tr>
+                    <tr><td><code>get_log_dir()</code><br>44–45</td><td><code>Api.__init__</code></td><td>يعيد مجلد <code>logs</code> تحت مجلد التطبيق.</td></tr>
+                    <tr><td><code>load_config()</code><br>48–60</td><td><code>Api.get_config</code>، <code>save_config</code>، تدفق الدخول/الفحص/التشغيل والمزامنة</td><td>يبدأ بنسخة من <code>DEFAULT_CONFIG</code> ويحدّثها من JSON. JSON تالف أو ملف غير مقروء يُبتلع بصمت ويرجع الافتراضيات.</td></tr>
+                    <tr><td><code>save_config(config)</code><br>63–82</td><td><code>Api.save_config</code> من واجهة الإعداد الأول أو الإعدادات</td><td>يدمج القيم المحفوظة والجديدة، يعيد اشتقاق <code>DeveloperMode</code> من الاسم، ثم يحفظ ذرياً.</td></tr>
+                    <tr><td><code>_save_json_atomic(path, payload)</code><br>85–113</td><td><code>save_config</code></td><td>يكتب ملفاً مؤقتاً في المجلد نفسه، يعمل <code>flush/fsync</code> ثم <code>os.replace</code>، وينظّف المؤقت عند الفشل.</td></tr>
+                    <tr><td><code>is_setup_complete(config=None)</code><br>115–117</td><td>لا يوجد مستدعٍ داخل التطبيق الحالي</td><td>مساعد يفحص <code>SetupCompleted</code> و<code>RootFolder</code>؛ شاشة JavaScript تطبق شرطاً مشابهاً بنفسها.</td></tr>
+                </tbody></table></div>
 
-        <div class="card">
-            <h2><span class="num">7</span> سكربت سجل الكومتات</h2>
-            <p>
-                <code>build_history.sh</code> بجذر المشروع يقسّم كل التعديلات لكومتات صغيرة
-                منطقية بتواريخ موزّعة، بنفس منهجية مشروع AlphaCode الرئيسي. شغّله من جذر
-                المستودع بعد أي دفعة تعديلات جديدة.
-            </p>
-        </div>
+                <h3><code>app/logger_setup.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل</th></tr></thead><tbody>
+                    <tr><td><code>enable_windows_ansi_support()</code><br>32–36</td><td>مرة عند استيراد الوحدة، السطر 38</td><td>محاولة تمكين ألوان ANSI على Windows.</td></tr>
+                    <tr><td><code>ConsoleFormatter.format(record)</code><br>41–62</td><td>مكتبة <code>logging</code> لكل رسالة على معالج الطرفية</td><td>وقت + مستوى/رمز + اسم المصدر + الرسالة بألوان الطرفية.</td></tr>
+                    <tr><td><code>setup_logger(log_dir, name="sooqify_updater")</code><br>65–93</td><td><code>Api.__init__</code></td><td>ينشئ معالج طرفية وملفاً دوّاراً؛ إن كان للسجل معالجات مسبقاً يرجعها لتجنب التكرار.</td></tr>
+                    <tr><td><code>print_startup_banner()</code><br>96–111</td><td><code>main()</code> قبل إنشاء النافذة</td><td>يمسح الطرفية ويحاول طباعة الشعار. في بناء <code>console=False</code> قد لا تكون هناك طرفية مرئية.</td></tr>
+                </tbody></table></div>
 
+                <h3><code>app/scanner.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل / شروط الإدخال</th></tr></thead><tbody>
+                    <tr><td><code>ProductFolder.has_search_key</code><br>49–52</td><td><code>_async_scan_flow</code> لإرسال الحالة، ثم <code>_run_pipeline</code> للتخطي</td><td>صحيح إذا وُجد <code>style_code</code> أو <code>search_code</code> أو <code>name_en</code>. لا يشمل <code>product_id</code> ولا <code>name_ar</code>؛ والـpipeline لا يستخدم <code>search_code</code> للبحث حالياً.</td></tr>
+                    <tr><td><code>parse_product_info(path)</code><br>55–80</td><td><code>scan_product_folder</code></td><td>يقرأ ملفاً UTF-8 مرة واحدة؛ الأسطر المقبولة بمفتاح لاتيني/مسافات ثم <code>:</code>. يحول القيمة <code>-</code> إلى فراغ، ويلتقط أسطر Name بالترتيب. يتجاهل <code>OSError</code> ولا يعالج ترميزاً UTF-8 غير صالح.</td></tr>
+                    <tr><td><code>sort_images(filenames)</code><br>83–92</td><td><code>scan_product_folder</code></td><td>يرتب الأسماء ذات الاسم الرقمي تصاعدياً كأعداد، ثم الأسماء الأخرى أبجدياً. الدالة الداخلية <code>sort_key</code> تنفذ مفتاح الترتيب.</td></tr>
+                    <tr><td><code>scan_product_folder(path)</code><br>95–143</td><td><code>scan_root_folder</code> و<code>Api._run_pipeline</code> لإعادة فحص المحدد</td><td>يفحص الملفات الموجودة مباشرة في مجلد واحد؛ يقبل png/jpg/jpeg/webp. لا يعدّ مجلداً بلا صور منتجاً. يدمج <code>product_info.txt</code> ثم <code>style_code.txt</code> وأول قيمة غير فارغة تفوز.</td></tr>
+                    <tr><td><code>scan_root_folder(root, progress_callback=None)</code><br>146–169</td><td><code>Api._async_scan_flow</code></td><td>يمشي الشجرة عبر <code>os.walk</code>، يتخطى المجلدات التي ينتهي اسمها بـ<code>_uploaded</code>/<code>_failed</code> ويستدعي callback بعد كل مجلد منتج.</td></tr>
+                    <tr><td><code>scan_cb(folder_name, current_count)</code><br><code>main.py</code> 248–249</td><td><code>scanner.scan_root_folder</code> أثناء الفحص</td><td>دالة داخلية في <code>_async_scan_flow</code> تحول تقدّم السكانر إلى حدث واجهة.</td></tr>
+                </tbody></table></div>
+            </article>
+
+            <article class="card">
+                <h2>خريطة الدوال: الرفع والمزامنة والسجل المحلي</h2>
+                <h3><code>app/uploader.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل / أثر جانبي</th></tr></thead><tbody>
+                    <tr><td><code>UploadResult(...)</code>، <code>__repr__</code><br>31–39</td><td>كل مسارات الرفع؛ النتيجة النهائية ترجع إلى <code>main._run_pipeline</code></td><td>كائن نتيجة: <code>success</code>، <code>message</code>، <code>images_uploaded</code>. العدد يعبّر عن الملفات التي عُدّت مختارة، وليس إثباتاً مؤكداً لوصولها لخادم الصور.</td></tr>
+                    <tr><td><code>upload_main_image(page, path, logger=None)</code><br>42–65</td><td><code>upload_product_images</code></td><td>يختار الملف في <code>#customFileEg1</code> ويحاول قراءة <code>files.length</code>. إذا تعذر التحقق يرجع نجاحاً احتياطياً؛ هذه نقطة fail-open.</td></tr>
+                    <tr><td><code>upload_gallery_images(page, paths, logger=None)</code><br>77–98</td><td><code>upload_product_images</code></td><td>يعيد البحث عن آخر input معرض، يختار كل ملف وينتظر 100ms. لا يتحقق من اكتمال طلب الشبكة؛ إذا اختفت الحقول يتوقف ويرجع العدد.</td></tr>
+                    <tr><td><code>save_product_form(page, timeout_ms=30000, logger=None)</code><br>101–112</td><td><code>upload_product_images</code> في الوضع الآلي فقط</td><td>ينقر زر <code>اعتماد</code> حرفياً وينتظر عنوان القائمة؛ التحويل هو معيار النجاح الحالي.</td></tr>
+                    <tr><td><code>verify_product_tags(page, product_id, logger=None)</code><br>115–175</td><td><code>upload_product_images</code> إذا كان هناك Product ID</td><td>يجرب قائمة selectors للـTags ثم يبحث عن ID كسلسلة جزئية في قيمة/نص الحاوية. عند غياب الحقل يرجع <code>True</code>؛ التحقق ليس fail-closed.</td></tr>
+                    <tr><td><code>upload_product_images(..., dry_run=False, ...)</code><br>177–280</td><td><code>process_product_folder</code></td><td>حتى 3 محاولات عامة؛ يفتح صفحة التعديل، يتحقق من Tags إن توفر ID، يختار الصورة الرئيسية، يرفض صور المعرض القديمة، يختار المعرض، يمنع الحفظ إذا كان العدد ناقصاً، ثم إمّا ينتظر المراجعة أو يحفظ. دالة <code>operator_name</code> لا تستخدمه هنا.</td></tr>
+                    <tr><td><code>verify_store_session(page, logger=None)</code><br>296–332</td><td><code>main.Api._run_pipeline</code> قبل أول منتج</td><td>يفتح قائمة المنتجات ويتحقق من أجزاء مسار تسجيل الدخول ومن وجود حقل البحث.</td></tr>
+                    <tr><td><code>SearchResult(...)</code>، <code>__repr__</code><br>334–343</td><td><code>search_and_open_product</code> ثم <code>process_product_folder</code></td><td>يحمل <code>found</code> و<code>edit_url</code> والرسالة؛ <code>matched_id</code> موجود لكنه لا يملأ في المسار الحالي.</td></tr>
+                    <tr><td><code>search_and_open_product(page, query, logger=None)</code><br>346–421</td><td><code>process_product_folder</code></td><td>يمسح البحث السابق، يملأ <code>#datatableSearch</code>، يضغط Enter، ينتظر تغيّر الجدول بطريقة تقريبية، ثم يفتح أول صف. لا يثبت أن الصف يطابق query.</td></tr>
+                    <tr><td><code>process_product_folder(page, sync, product, operator_name, dry_run=False, logger=None)</code><br>427–498</td><td><code>main.Api._run_pipeline</code> لكل هدف صالح</td><td>يختار مفتاح البحث، يبحث، ينادي الرفع، ثم في الوضع الآلي يسجل وحدة عمل لكل نجاح/فشل؛ النجاح فقط يُدفع من <code>SyncClient</code>.</td></tr>
+                </tbody></table></div>
+
+                <h3><code>app/work_log.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل</th></tr></thead><tbody>
+                    <tr><td><code>get_work_log_path()</code>، <code>get_sync_state_path()</code><br>44–49</td><td>وظائف القراءة/الكتابة بنفس الملف</td><td>يبنيان مساري <code>work_log.jsonl</code> و<code>work_sync_state.json</code> ضمن مجلد التطبيق.</td></tr>
+                    <tr><td><code>make_work_unit(...)</code><br>56–75</td><td><code>SyncClient.record_images_updated</code> والاختبارات</td><td>يبني السجل المشترك ويحوّل العدد إلى <code>int</code>؛ <code>extra</code> يضاف أخيراً ويمكنه تقنياً استبدال مفاتيح أساسية.</td></tr>
+                    <tr><td><code>work_unit_key(unit)</code><br>78–90</td><td><code>SyncClient.push_unit</code> و<code>units_by_key</code></td><td>المفتاح الحتمي <code>WU::{source}::{item_type}::{item_id}::{date}</code>، بلا المستخدم أو الوقت.</td></tr>
+                    <tr><td><code>now_parts()</code><br>92–95</td><td><code>SyncClient.record_images_updated</code></td><td>يستخدم ساعة الجهاز المحلية ويعيد تاريخاً وطابعاً نصياً.</td></tr>
+                    <tr><td><code>append_unit(unit, logger=None)</code><br>102–121</td><td><code>SyncClient.record_images_updated</code> ثم المصالحة للسجلات المستعادة</td><td>يلحق سطراً JSONL تحت قفل داخل العملية. لا يوجد قفل نظامي مشترك بين عمليتين منفصلتين.</td></tr>
+                    <tr><td><code>load_units(logger=None)</code><br>123–157</td><td>المصالحة و<code>Api.get_sync_status</code></td><td>يتجاهل الأسطر الفارغة، يعدّ السطر التالف/غير المطابق ويصدر تحذيراً إذا توفر logger.</td></tr>
+                    <tr><td><code>units_by_key(units)</code><br>160–162</td><td>المصالحة وحالة المزامنة</td><td>يطوي المفاتيح المتكررة في قاموس؛ آخر وحدة بنفس المفتاح تفوز.</td></tr>
+                    <tr><td><code>load_sync_state()</code>، <code>save_sync_state(state)</code><br>169–209</td><td><code>SyncClient</code> وواجهة الحالة</td><td>قراءة JSON للحالة وحفظ ذري. فشل الحفظ يرجع <code>False</code> ولا يوجد caller يفحص النتيجة؛ عند فشل الاستبدال قد يبقى ملف مؤقت.</td></tr>
+                </tbody></table></div>
+
+                <h3><code>app/sync_client.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل</th></tr></thead><tbody>
+                    <tr><td><code>SyncClient(server_url, token)</code>، خاصية <code>configured</code><br>40–47</td><td><code>main.Api._run_pipeline</code> و<code>Api.reconcile_sync</code></td><td>يشيل شرطة URL الختامية ويعتبر العميل مهيأً إذا وُجد URL وToken فقط؛ لا يقرأ <code>SyncEnabled</code>.</td></tr>
+                    <tr><td><code>_call(action, payload=None, method="POST")</code><br>49–71</td><td><code>pull_all</code>، <code>push_unit</code>، <code>whoami</code></td><td>HTTP إلى <code>sync.php</code> مع <code>X-Sync-Token</code>، مهلة اتصال/قراءة 5/10 ثوانٍ، يميز 403 ويقبل استجابة duplicate.</td></tr>
+                    <tr><td><code>pull_all()</code><br>77–90</td><td><code>reconcile_work_units</code></td><td>يرسل سحباً كاملاً <code>since=""</code> ويتطلب أن تكون <code>items</code> قاموساً.</td></tr>
+                    <tr><td><code>push_unit(unit)</code><br>92–100</td><td><code>record_images_updated</code> والمصالحة</td><td>يدفع وحدة واحدة بمفتاح ثابت ويقبل success أو duplicate.</td></tr>
+                    <tr><td><code>resolve_operator_identity(name, password="", logger=None)</code><br>102–143</td><td><code>record_images_updated</code></td><td>يستعمل <code>whoami</code>، يحفظ نتيجة الربط/الفشل في <code>identity_cache</code>، ويرجع الاسم المحلي عند فشل التحقق.</td></tr>
+                    <tr><td><code>whoami(name, password="")</code><br>145–156</td><td><code>resolve_operator_identity</code></td><td>يرسل <code>action=whoami</code> ببيانات <code>key</code>/<code>password</code>، ويقرأ <code>member.display_name</code>.</td></tr>
+                    <tr><td><code>reconcile_work_units(logger=None)</code><br>162–256</td><td><code>Api.reconcile_sync</code> والمصالحة التلقائية</td><td>يسحب كل شيء، يفلتر سجل image_updater، يعيد المفقود محلياً، ويدفع حتى 300 سجل ناقص؛ يحفظ delta وحالة المزامنة.</td></tr>
+                    <tr><td><code>auto_reconcile_if_due(force=False, logger=None)</code><br>258–276</td><td>نهاية <code>main.Api._run_pipeline</code> في الوضع الآلي</td><td>يقارن آخر توقيت بحاجز 6 ساعات، ثم ينادي المصالحة إن حان موعدها.</td></tr>
+                    <tr><td><code>_store_state(summary)</code><br>278–284</td><td>فشل السحب ونجاح المصالحة</td><td>يحفظ وقت آخر محاولة، الخطأ، delta، و<code>in_sync</code>. الاسم الحالي للحقل لا يفرق بين «آخر محاولة» و«آخر مصالحة ناجحة».</td></tr>
+                    <tr><td><code>record_images_updated(...)</code><br>290–339</td><td><code>uploader.process_product_folder</code> في الوضع الآلي</td><td>يسجل محلياً أولاً، ثم يدفع النجاح فقط إذا كان sync مهيأً. الفشل يبقى محلياً للمراجعة.</td></tr>
+                    <tr><td><code>_sleep(seconds)</code><br>341–344</td><td>بين طلبات push</td><td>تأخير قابل للاستبدال بالاختبارات لتجنب إغراق الخادم.</td></tr>
+                </tbody></table></div>
+            </article>
+
+            <article class="card">
+                <h2>خريطة الدوال: المنسّق والواجهة</h2>
+                <h3><code>app/main.py</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>العمل</th></tr></thead><tbody>
+                    <tr><td><code>_launch_browser(...)</code><br>61–81</td><td><code>_login_flow</code> و<code>_run_pipeline</code></td><td>محاولتا فتح persistent context: 45 ثم 90 ثانية.</td></tr>
+                    <tr><td><code>get_automation_profile_dir()</code><br>84–93</td><td>تسجيل الدخول والتشغيل</td><td>ينشئ <code>browser_profile</code> داخل بيانات المستخدم؛ لا ينسخ Chrome الشخصي.</td></tr>
+                    <tr><td><code>expand_profile_path(raw_path)</code><br>96–99</td><td><code>suggest_browser_profile_path</code></td><td>يوسع <code>%VAR%</code> و<code>~</code>.</td></tr>
+                    <tr><td><code>get_browser_launch_kwargs(...)</code><br>101–122</td><td>تسجيل الدخول والتشغيل</td><td>Chrome/Edge بالقناة، وBrave بمسارات تنفيذية محتملة. المعامل <code>user_data_dir_lower</code> غير مستخدم.</td></tr>
+                    <tr><td><code>_is_inside(candidate, parent)</code><br>125–135</td><td><code>_run_pipeline</code> و<code>_relocate_product</code></td><td>حارس لمسار المسارات خارج الجذر باستخدام <code>commonpath</code>.</td></tr>
+                    <tr><td><code>_unique_destination(path)</code><br>138–149</td><td><code>_relocate_product</code></td><td>يختار وجهة غير موجودة أو يضيف لاحقة من 2 إلى 999 دون حذف الوجهة السابقة.</td></tr>
+                    <tr><td><code>Api.__init__()</code>، <code>bind_window()</code><br>152–161</td><td>إنشاء <code>Api</code> وربطها في <code>main()</code></td><td>تهيئة logger وخيوط المسح/التشغيل وعلم الإيقاف ثم تخزين نافذة PyWebView.</td></tr>
+                    <tr><td><code>Api._push(event, payload=None)</code><br>163–171</td><td>كل تدفقات الخلفية</td><td>ينفذ <code>window.onBackendEvent(...)</code>. أي خطأ يُبتلع بصمت ولا يوجد طابور لإعادة الحدث.</td></tr>
+                    <tr><td><code>get_config()</code>، <code>save_config(values)</code><br>173–177</td><td>استدعاءات JavaScript عبر PyWebView</td><td>جسر مباشر إلى وظائف <code>config.py</code>.</td></tr>
+                    <tr><td><code>choose_root_folder()</code><br>179–183</td><td>أزرار اختيار مجلد الإعداد الأول/الإعدادات</td><td>يفتح Folder Dialog ويرجع أول مسار أو نصاً فارغاً.</td></tr>
+                    <tr><td><code>suggest_browser_profile_path(browser)</code><br>185–186</td><td>لا يوجد مستدعٍ في UI الحالية</td><td>يعيد المسار المقترح من <code>COMMON_PROFILE_PATHS</code>؛ لا يفتح هذا البروفايل للتشغيل.</td></tr>
+                    <tr><td><code>login_browser()</code>، <code>_login_flow()</code><br>188–228</td><td>زر تسجيل الدخول، ثم Thread</td><td>يفتح نافذة مرئية بالبروفايل المخصص، ينتظر إغلاقها ويحفظ جلسة Playwright.</td></tr>
+                    <tr><td><code>scan_products()</code>، <code>_async_scan_flow(root)</code><br>230–269</td><td><code>app.js:runScan</code>، ثم Thread</td><td>يتحقق من الجذر، يفحصه، ويصدر أحداث <code>scan_started/progress/finished</code>.</td></tr>
+                    <tr><td><code>start_run(paths, dry_run=True)</code>، <code>stop_run()</code><br>271–284</td><td>زر ابدأ/إيقاف</td><td>يشغل pipeline في daemon thread. الإيقاف علم يُفحص بين المنتجات، وليس إلغاءً فورياً لطلب Playwright الحالي.</td></tr>
+                    <tr><td><code>reconcile_sync()</code>، <code>get_sync_status()</code><br>286–313</td><td>أزرار وحالة إعدادات المزامنة</td><td>الأولى تسحب/تدفع فوراً؛ الثانية تقرأ سجل العمل والحالة المحلية.</td></tr>
+                    <tr><td><code>_run_pipeline(paths, dry_run)</code><br>315–475</td><td>Thread من <code>start_run</code></td><td>يعيد فحص الأهداف، يتحقق من المتجر، يعالج المنتجات، ينتظر اعتماد المراجعة، ينقل المجلدات، ثم قد يصالح sync.</td></tr>
+                    <tr><td><code>_relocate_product(path, root, success, message=None)</code><br>477–526</td><td>نهاية كل منتج في الوضع الآلي إذا النقل مفعّل</td><td>ينقل المسار النسبي إلى جوار root باسم <code>root_uploaded</code> أو <code>root_failed/category</code> ويحمي الأرشيف من الاستبدال.</td></tr>
+                    <tr><td><code>_classify_failure(message)</code><br>528–548</td><td><code>_relocate_product</code> للمنتجات الفاشلة</td><td>يطابق نصوص عربية ثابتة مع فئات مجلدات؛ تغيير صياغة رسائل الخطأ قد يرسلها إلى «أخطاء أخرى».</td></tr>
+                    <tr><td><code>main()</code><br>551–568</td><td>كتلة <code>if __name__ == "__main__"</code></td><td>يعرض الشعار، ينشئ نافذة 1180×820 حدها الأدنى 980×680، ويختار EdgeChromium على Windows.</td></tr>
+                </tbody></table></div>
+                <p class="small">دوال متداخلة إضافية: <code>scan_cb</code> داخل <code>_async_scan_flow</code> لتقدم الفحص؛ و<code>table_updated</code> داخل <code>search_and_open_product</code> لمحاولة انتظار تحديث الجدول.</p>
+                <p><strong>قيم/مسارات غير مستخدمة أو قديمة:</strong> <code>scanner.INFO_FILENAME</code> alias للتوافق ولا يُستعمل داخلياً؛ <code>SearchResult.matched_id</code> لا يُملأ؛ <code>Api.suggest_browser_profile_path()</code> و<code>COMMON_PROFILE_PATHS</code> لا يستعملهما UI؛ <code>total_images</code> يتجمع في pipeline ولا يرسل إلى الواجهة/التقرير؛ ومعامل <code>operator_name</code> في <code>upload_product_images</code> غير مستخدم. لا تحذفها قبل التأكد من المستدعين الخارجيين لـPyWebView أو من التوافق المطلوب.</p>
+
+                <h3><code>app/ui/app.js</code></h3>
+                <div class="table-wrap"><table class="function-table"><thead><tr><th>الدالة / الموضع</th><th>من يستدعيها</th><th>المسؤولية</th></tr></thead><tbody>
+                    <tr><td><code>api()</code>، <code>log(message, level="info")</code><br>13–25</td><td>معالجات الأزرار وكل الأحداث</td><td>الأولى تعيد <code>window.pywebview.api</code>؛ الثانية تعرض النص باستخدام <code>textContent</code>.</td></tr>
+                    <tr><td>مستمع <code>pywebviewready</code><br>31–41</td><td>حدث PyWebView عند جهوزية الجسر</td><td>يقرأ الإعدادات ويقرر شاشة الإعداد أو الرئيسية ثم يبدأ الفحص.</td></tr>
+                    <tr><td><code>showSetupScreen()</code>، <code>showMainScreen()</code>، <code>updateDevBadge()</code><br>43–61</td><td>بدء التطبيق وحفظ الإعداد الأول/تحديث الاسم</td><td>تبديل الشاشات وشارة وضع المطور.</td></tr>
+                    <tr><td><code>runScan()</code><br>110–116</td><td>البدء، أزرار إعادة الفحص، تغيير root، أحداث نهاية التشغيل</td><td>ينادي <code>scan_products()</code> ويعرض خطأ بدء الطلب فقط؛ النتيجة الفعلية تأتي كحدث.</td></tr>
+                    <tr><td><code>renderProductList()</code>، <code>updateSelectionSummary()</code><br>118–169</td><td>حدث انتهاء الفحص وتغيير checkboxes</td><td>يبني صفوف المنتجات، يختار الاسم العربي/الإنجليزي/اسم المجلد، ويضع تحذير غياب مفتاح البحث.</td></tr>
+                    <tr><td><code>setRunningState(running)</code><br>221–226</td><td>نجاح start_run وأحداث النهاية/الإيقاف/الخطأ</td><td>تعطيل أزرار البدء/تفعيل الإيقاف وإظهار شريط التقدم.</td></tr>
+                    <tr><td><code>renderSyncStatus(status)</code>، <code>escapeHtml(text)</code><br>246–275</td><td><code>refreshSyncStatus()</code></td><td>عرض الأرقام المحلية والنصوص بعد تهريب HTML.</td></tr>
+                    <tr><td><code>refreshSyncStatus()</code><br>277–283</td><td>فتح الإعدادات وزر تحديث الحالة وبعد المصالحة</td><td>ينادي API الحالة ويعالج فشل القراءة.</td></tr>
+                    <tr><td><code>populateSettingsInputs()</code><br>373–386</td><td>فتح نافذة الإعدادات</td><td>ينسخ القيم من <code>state.config</code> إلى حقول الشاشة.</td></tr>
+                    <tr><td><code>playCompletionBeep()</code><br>392–422</td><td>حدث <code>run_finished</code> إذا <code>SoundOnComplete</code> صحيح</td><td>نغمتان Web Audio بتردد 880 و1100Hz؛ الصوت في الواجهة فقط.</td></tr>
+                    <tr><td><code>window.onBackendEvent(msg)</code><br>428–505</td><td><code>Api._push</code> في Python</td><td>موزع أحداث الفحص والتشغيل والمصالحة وتسجيل الدخول؛ أحداثه هي واجهة العقد بين Python وJS.</td></tr>
+                    <tr><td><code>updateProgress(current,total)</code><br>507–511</td><td><code>run_started</code> و<code>product_done</code></td><td>يضبط النسبة والنص.</td></tr>
+                    <tr><td><code>markProductStatus(folderName,status)</code><br>513–524</td><td><code>product_done</code></td><td>يلون صفاً بمقارنة آخر جزء من المسار مع اسم المجلد فقط؛ أسماء المجلدات المكررة قد تلوّن صفاً خاطئاً.</td></tr>
+                </tbody></table></div>
+                <p><strong>معالجات DOM غير المسماة:</strong> <code>pickFolderBtn</code>/<code>changeFolderBtn</code> يختاران الجذر؛ <code>completeSetupBtn</code> و<code>saveSettingsBtn</code> يحفظان config؛ <code>selectAllCheck</code> يغير التحديد؛ <code>loginBtn</code> يفتح الدخول؛ <code>startRunBtn</code>/<code>stopRunBtn</code> يشغلان/يوقفان؛ وأزرار الحالة تنادي refresh/reconcile.</p>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-defaults" role="tabpanel" aria-labelledby="tab-defaults" tabindex="0" hidden>
+            <article class="card">
+                <h2>الإعدادات الافتراضية الفعلية</h2>
+                <p>المصدر هو <code>app/config.py:16–29</code>. <code>load_config()</code> يدمج الملف المحفوظ فوق هذه القيم، ولا يتحقق من أنواع كل قيمة.</p>
+                <div class="table-wrap"><table><thead><tr><th>المفتاح</th><th>الافتراضي</th><th>المعنى والسلوك الفعلي</th></tr></thead><tbody>
+                    <tr><td><code>RootFolder</code></td><td><code>""</code></td><td>مجلد الصور. لازم مسار حقيقي ليعمل الفحص.</td></tr>
+                    <tr><td><code>Browser</code></td><td><code>"chrome"</code></td><td>القيم المعروضة: chrome / brave / edge. هذا يحدد القناة/البرنامج الذي يحاول Playwright تشغيله، وليس نقل جلسة المتصفح الشخصي.</td></tr>
+                    <tr><td><code>OperatorName</code></td><td><code>""</code></td><td>اسم العامل المسجل في وحدة العمل؛ مطلوب في شاشة الإعدادات.</td></tr>
+                    <tr><td><code>DeveloperMode</code></td><td><code>false</code></td><td>يعاد حسابه عند كل حفظ: true فقط إذا كان الاسم بعد trim/lower يساوي <code>yousef</code>. النتيجة الظاهرة هي badge؛ لا توجد أداة dev_tools في checkout.</td></tr>
+                    <tr><td><code>SyncEnabled</code></td><td><code>false</code></td><td>المفتاح/checkbox موجود، لكن <code>SyncClient.configured</code> لا يفحصه. فعلياً يكفي وجود URL وToken لتفعيل المزامنة.</td></tr>
+                    <tr><td><code>SyncServerUrl</code>، <code>SyncToken</code></td><td>نص فارغ</td><td>URL الأساسي أو رابط sync.php، والرمز السري في ترويسة HTTP.</td></tr>
+                    <tr><td><code>BatchLimit</code></td><td><code>0</code></td><td>0 يعني لا حد؛ الرقم الموجب يقتطع أول N من قائمة الاختيار قبل المتصفح.</td></tr>
+                    <tr><td><code>SoundOnComplete</code></td><td><code>true</code></td><td>تشغيل نغمة واجهة عند استقبال <code>run_finished</code>.</td></tr>
+                    <tr><td><code>SetupCompleted</code></td><td><code>false</code></td><td>شرط شاشة الإعداد في JS مع وجود RootFolder.</td></tr>
+                    <tr><td><code>Headless</code></td><td><code>false</code></td><td>محفوظ من شاشة الإعداد، لكن <code>_run_pipeline</code> يقرر headless من <code>dry_run</code> مباشرة: review=مرئي، auto=مخفي. لذلك هذا الإعداد لا يغيّر سلوك التشغيل الحالي.</td></tr>
+                    <tr><td><code>MoveFoldersAfterUpload</code></td><td><code>true</code></td><td>في الوضع الآلي ينقل مجلد كل نتيجة غير متخطاة إلى شجرة مجاورة للمصدر. لا يُنقل في وضع المراجعة؛ ولا يُنقل المنتج الذي يُتخطى لغياب مفتاح.</td></tr>
+                </tbody></table></div>
+                <div class="callout warn"><strong>افتراضي الواجهة أهم من افتراضي الدالة:</strong> مربع المراجعة <code>#dryRunCheck</code> لا يحمل <code>checked</code> في <code>index.html</code>. بعد الفحص تختار الواجهة كل المنتجات. بالتالي الوضع الآلي غير المرئي هو الوضع الافتراضي عند ضغط «ابدأ» من الواجهة.</div>
+            </article>
+
+            <article class="card">
+                <h2>ثوابت التنفيذ التي ليست إعدادات</h2>
+                <div class="table-wrap"><table><thead><tr><th>الوحدة</th><th>الثابت</th><th>القيمة</th><th>استخدامه</th></tr></thead><tbody>
+                    <tr><td><code>scanner.py</code></td><td><code>IMAGE_EXTENSIONS</code></td><td><code>.png, .jpg, .jpeg, .webp</code></td><td>امتدادات الصور المكتشفة؛ GIF/BMP/AVIF غير مدعومة حالياً.</td></tr>
+                    <tr><td><code>scanner.py</code></td><td><code>INFO_FILENAMES</code></td><td><code>(product_info.txt, style_code.txt)</code></td><td>ترتيب الدمج: أول قيمة غير فارغة تفوز.</td></tr>
+                    <tr><td><code>main.py</code></td><td><code>NAVIGATION_TIMEOUT_MS</code></td><td>20,000ms</td><td>مهلة تنقل/افتراضية السياق.</td></tr>
+                    <tr><td><code>main.py</code></td><td><code>BROWSER_LAUNCH_TIMEOUT_MS</code> / retry</td><td>45,000 / 90,000ms</td><td>محاولتا فتح المتصفح.</td></tr>
+                    <tr><td><code>uploader.py</code></td><td><code>GOTO_TIMEOUT_MS</code></td><td>20,000ms</td><td>فتح صفحات سوقيفاي.</td></tr>
+                    <tr><td><code>uploader.py</code></td><td><code>GALLERY_READY_TIMEOUT_MS</code></td><td>8,000ms</td><td>انتظار ظهور حقول صور المعرض.</td></tr>
+                    <tr><td><code>uploader.py</code></td><td>محاولات الرفع / فاصل الحقول</td><td>3 محاولات / 100ms</td><td>فاصل ظهور حقل معرض جديد. انتظار retry العام 2,000ms.</td></tr>
+                    <tr><td><code>uploader.py</code></td><td>انتظار الاعتماد الآلي / اليدوي</td><td>30,000 / 300,000ms</td><td>حفظ النموذج، أو انتظار الانتقال بعد مراجعة المستخدم.</td></tr>
+                    <tr><td><code>sync_client.py</code></td><td><code>REQUEST_TIMEOUT</code></td><td><code>(5, 10)</code> ثانية</td><td>مهلتا الاتصال والقراءة.</td></tr>
+                    <tr><td><code>sync_client.py</code></td><td><code>FULL_RECONCILE_INTERVAL_HOURS</code></td><td>6 ساعات</td><td>الفاصل بين المصالحات التلقائية.</td></tr>
+                    <tr><td><code>sync_client.py</code></td><td><code>REQUEST_PACING_SECONDS</code> / <code>MAX_PUSH_PER_RECONCILE</code></td><td>0.3 ثانية / 300 وحدة</td><td>تهدئة طلبات الدفع وحد أقصى للمصالحة الواحدة.</td></tr>
+                    <tr><td><code>logger_setup.py</code></td><td><code>LOG_MAX_BYTES</code> / <code>LOG_BACKUP_COUNT</code></td><td>5MiB / 3 نسخ احتياطية</td><td>ملف حالي وثلاثة ملفات دوّارة تقريباً، أي نحو 20MiB حد اسمي.</td></tr>
+                    <tr><td><code>work_log.py</code></td><td><code>SCHEMA_VERSION</code></td><td>1</td><td>جزء من عقد وحدة العمل مع AlphaCode.</td></tr>
+                </tbody></table></div>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" tabindex="0" hidden>
+            <article class="card">
+                <h2>عقد صفحات سوقيفاي كما يطلبه الكود</h2>
+                <p class="lead">هذه قائمة محددات ثابتة في <code>app/uploader.py</code> وليست ضماناً بأن DOM الحالي للموقع ما زال يطابقها. لم يوجد ضمن المستودع HTML محفوظ أو fixture حي يثبتها.</p>
+                <div class="table-wrap"><table><thead><tr><th>الصفحة/العنصر</th><th>القيمة الحالية</th><th>الموضع/الملاحظة</th></tr></thead><tbody>
+                    <tr><td>رابط قائمة المنتجات</td><td><code>https://admin.sooqifyonline.com/admin/item/list</code></td><td><code>uploader.py:286</code></td></tr>
+                    <tr><td>حقل البحث</td><td><code>#datatableSearch</code></td><td><code>uploader.py:287</code></td></tr>
+                    <tr><td>صفوف القائمة</td><td><code>table tbody tr</code></td><td><code>uploader.py:288</code></td></tr>
+                    <tr><td>رابط عرض المنتج</td><td><code>a[href*="/item/view/"]</code></td><td>اختيار الرابط الأول في أول صف.</td></tr>
+                    <tr><td>رابط التعديل من صفحة العرض</td><td><code>a.btn.btn--primary[href*="/item/edit/"]</code></td><td><code>uploader.py:289</code></td></tr>
+                    <tr><td>حقل الصورة الرئيسية</td><td><code>#customFileEg1</code></td><td><code>uploader.py:17</code></td></tr>
+                    <tr><td>حقول صور المعرض</td><td><code>input.spartan_image_input</code></td><td><code>uploader.py:18</code>؛ يفترض أن آخر input فارغ وأن عنصراً جديداً يظهر بعد الاختيار.</td></tr>
+                    <tr><td>صور المعرض القديمة</td><td><code>a.spartan_remove_row[href*="remove-image"]</code></td><td>أي نتيجة توقف الرفع؛ لا يوجد حذف آلي نشط.</td></tr>
+                    <tr><td>زر الحفظ</td><td>زر role=button واسمه الدقيق <code>اعتماد</code></td><td>لا يستخدم submit selector عام؛ نجاح الحفظ هو الانتقال إلى مسار القائمة.</td></tr>
+                    <tr><td>مؤشرات تسجيل الدخول</td><td><code>/login</code>، <code>/auth/login</code>، <code>/admin/login</code></td><td>فحص أجزاء URL ثم وجود حقل البحث.</td></tr>
+                    <tr><td>حقول Tags المحتملة</td><td><code>input[name="tags"]</code>، <code>#tags</code>، <code>tags[]</code>، <code>.tagsinput</code>، وغيرها</td><td><code>uploader.py:122–130</code>؛ إذا لم يجد أيّاً منها فالكود يسمح بالمرور.</td></tr>
+                </tbody></table></div>
+                <div class="callout danger"><strong>دليل المطور السابق فيه وصف غير مطابق للكود:</strong> يقول إن <code>a.spartan_remove_row</code> يُنقر لحذف الصور القديمة. في هذه النسخة لا يتم النقر مطلقاً؛ عند وجود رابط مطابق تتوقف العملية ويُطلب الحذف اليدوي. لا تعِد تفعيل الحذف الآلي قبل فهم endpoint وسلوك الإضافة.</div>
+            </article>
+
+            <article class="card">
+                <h2>صيغة مجلد المنتج والبيانات التي يقرأها السكانر</h2>
+                <div class="table-wrap"><table><thead><tr><th>المدخل</th><th>ما يتوقعه الكود</th><th>مصدر الثقة/القيد</th></tr></thead><tbody>
+                    <tr><td>الصور</td><td>ملفات مباشرة داخل مجلد المنتج، بامتدادات png/jpg/jpeg/webp.</td><td>ترقيم الأسماء يحدد الترتيب. أول ملف مرتب يرسل كالصورة الرئيسية.</td></tr>
+                    <tr><td><code>product_info.txt</code></td><td>أسطر مثل <code>Name: ...</code> مرتين، <code>Style Code: ...</code>، <code>Date Added: ...</code>، <code>Added By: ...</code>.</td><td>هذا هو الوصف داخل تعليقات <code>scanner.py</code> والاختبارات؛ لا يوجد ملف إدخال حقيقي محفوظ هنا.</td></tr>
+                    <tr><td><code>style_code.txt</code></td><td>تعليقات المصدر تقول إنه قد يحمل <code>Style Code</code> و<code>Search Code</code> و<code>Product ID</code>.</td><td>هذه صيغة منسوبة إلى AlphaCode داخل التعليق فقط؛ المستودع المقابل غير موجود هنا للتحقق منها.</td></tr>
+                    <tr><td>المفاتيح المقبولة</td><td>Regex يقبل أسماء حقول من أحرف إنجليزية ومسافات فقط قبل النقطتين؛ يحول قيمة <code>-</code> إلى فارغ.</td><td>المفاتيح العربية أو المفاتيح ذات الشرطة السفلية لا تطابق الـregex الحالي.</td></tr>
+                    <tr><td>دمج الملفين</td><td><code>product_info.txt</code> يقرأ أولاً؛ أول قيمة غير فارغة لكل key تفوز. أول اسمين في قائمة الأسطر يصبحان EN ثم AR.</td><td>وجود ملفي بيانات مع عدد أسطر Name غير متوقع قد يخلط الأسماء بين المصدرين.</td></tr>
+                </tbody></table></div>
+                <p><strong>المسار الفعلي للبحث:</strong> في <code>process_product_folder</code> الاختيار هو <code>style_code</code> ثم <code>name_en</code> ثم <code>name_ar</code> ثم اسم المجلد. رغم أن <code>has_search_key</code> يعتبر <code>search_code</code> مفتاحاً، المسار الحالي لا يبحث به. قيمة <code>product_id</code> تستخدم لفحص Tags فقط.</p>
+            </article>
+
+            <article class="card">
+                <h2>عقد خادم المزامنة المتوقع</h2>
+                <p>هذا هو البروتوكول الذي يرسله العميل؛ لم أجد <code>sync.php</code> أو مستودع AlphaCode ضمن الملفات الحالية، لذا يلزم مطابقة هذا الوصف مع مصدر الخادم قبل تغيير الحقول.</p>
+                <div class="table-wrap"><table><thead><tr><th>الفعل</th><th>الطلب المتوقع</th><th>استجابة يفهمها العميل</th></tr></thead><tbody>
+                    <tr><td><code>pull</code></td><td><code>POST ?action=pull</code> مع JSON <code>{"since":""}</code> وترويسة <code>X-Sync-Token</code>.</td><td><code>{"items": {"key": {...}}}</code>؛ غياب items أو كونه غير قاموس خطأ.</td></tr>
+                    <tr><td><code>push</code></td><td><code>POST ?action=push</code> مع <code>{"key":"WU::...", "product": {...}}</code>.</td><td><code>success</code> أو <code>duplicate</code> يعني قبولاً.</td></tr>
+                    <tr><td><code>whoami</code></td><td><code>POST ?action=whoami</code> مع <code>{"key": اسم المشغل, "password":""}</code>.</td><td><code>{"success":true,"member":{"display_name":"..."}}</code>، وإلا يُستخدم الاسم المحلي.</td></tr>
+                    <tr><td>عنوان الخادم</td><td>إذا انتهى الإعداد بـ<code>.php</code> يستخدم كما هو؛ وإلا يلحق <code>/sync.php</code>.</td><td>يجب ألا يحتوي URL على query غير متوقع؛ العميل يضيف query باسم action.</td></tr>
+                </tbody></table></div>
+                <p>شكل وحدة العمل القياسي يحوي <code>record_kind=work_unit</code>، <code>schema_version=1</code>، <code>source=image_updater</code>، <code>item_type=product_images_updated</code>، وحالة <code>done|failed|skipped</code>. المسار الآلي يحفظ فشل المنتج محلياً فقط ويدفع <code>done</code> فقط. مفتاح الإدخال الحالي هو <code>item_id = style_code أو search_code أو اسم المجلد</code>، والكمية هي عدد الصور المختارة.</p>
+                <pre>WU::image_updater::product_images_updated::&lt;item_id&gt;::&lt;YYYY-MM-DD&gt;</pre>
+                <div class="callout warn">المفتاح لا يتضمن المستخدم ولا الوقت ولا معرّف محاولة الرفع. لذلك تكرار تحديث المنتج نفسه في اليوم نفسه يطوي الوحدتين إلى مفتاح واحد عند المزامنة. يلزم حسم معنى «وحدة العمل» قبل تعديل العقد في أي من المستودعين.</div>
+            </article>
+
+            <article class="card">
+                <h2>Probe للـDOM: تحليل صفحة سوقيفاي دون إرسال أي طلب</h2>
+                <p>إذا كانت عناصر الصفحة مجهولة أو تغيرت الإضافة، افتح صفحة القائمة ثم صفحة عرض/تعديل منتج في جلسة مصرح بها، والصق هذا المقطع في Console للمطور. المقطع <strong>يقرأ DOM فقط</strong>: لا ينقر، لا يرسل نموذجاً، لا يقرأ قيم الحقول أو cookies أو CSRF، ولا يرسل البيانات إلى الإنترنت. شغله على كل صفحة على حدة.</p>
+                <pre><code>(() =&gt; {
+    const count = (selector) =&gt; {
+        try { return document.querySelectorAll(selector).length; }
+        catch (_) { return null; }
+    };
+    const pathOnly = (value) =&gt; {
+        try { return new URL(value || location.href, location.href).pathname; }
+        catch (_) { return ""; }
+    };
+    const safeField = (el) =&gt; ({
+        tag: el.tagName.toLowerCase(),
+        type: el.getAttribute("type") || "",
+        id: el.id || "",
+        name: el.getAttribute("name") || "",
+        className: typeof el.className === "string" ? el.className : "",
+        accept: el.getAttribute("accept") || "",
+        multiple: !!el.multiple
+        // متعمد: لا نقرأ el.value أو ملفات الحقل أو innerHTML.
+    });
+    const selectorMap = {
+        search: "#datatableSearch",
+        tableRows: "table tbody tr",
+        mainImage: "#customFileEg1",
+        galleryInputs: "input.spartan_image_input",
+        spartanRemove: "a.spartan_remove_row",
+        removeImageLinks: 'a.spartan_remove_row[href*=\"remove-image\"]',
+        viewLinks: 'a[href*=\"/item/view/\"]',
+        editLinks: 'a.btn.btn--primary[href*=\"/item/edit/\"]',
+        tagCandidates: 'input[name=\"tags\"], input#tags, input[name=\"tags[]\"], select[name=\"tags[]\"], input.tagsinput, .bootstrap-tagsinput input, #tags-select'
+    };
+    const forms = Array.from(document.forms).map((form) =&gt; ({
+        method: (form.method || "get").toUpperCase(),
+        actionPath: pathOnly(form.getAttribute("action") || location.href),
+        fields: Array.from(form.querySelectorAll("input,select,textarea")).map(safeField)
+    }));
+    const tables = Array.from(document.querySelectorAll("table")).map((table) =&gt; ({
+        id: table.id || "",
+        className: table.className || "",
+        headers: Array.from(table.querySelectorAll("thead th")).map((th) =&gt; (th.innerText || "").trim()),
+        bodyRows: table.querySelectorAll("tbody tr").length
+        // لا يقرأ نص صفوف المنتجات.
+    }));
+    const links = [
+        ...Array.from(document.querySelectorAll(selectorMap.viewLinks)).slice(0, 3),
+        ...Array.from(document.querySelectorAll(selectorMap.editLinks)).slice(0, 3),
+        ...Array.from(document.querySelectorAll(selectorMap.removeImageLinks)).slice(0, 3)
+    ].map((anchor) =&gt; ({
+        className: anchor.className || "",
+        path: pathOnly(anchor.getAttribute("href"))
+        // query/hash مستبعدان.
+    }));
+    const summary = {
+        page: { origin: location.origin, path: location.pathname, title: document.title, readyState: document.readyState },
+        selectors: Object.fromEntries(Object.entries(selectorMap).map(([key, selector]) =&gt; [key, count(selector)])),
+        forms,
+        tables,
+        sampleLinkPaths: links,
+        dataTablesPresent: !!(window.jQuery &amp;&amp; window.jQuery.fn &amp;&amp; window.jQuery.fn.dataTable),
+        removeLinkPaths: Array.from(document.querySelectorAll(selectorMap.removeImageLinks)).slice(0, 5)
+            .map((a) =&gt; pathOnly(a.getAttribute("href")))
+    };
+    console.log("Sooqify DOM probe (read-only; values omitted):", summary);
+    return summary;
+})();</code></pre>
+                <p>قبل مشاركة الناتج، راجع حقول <code>origin</code>/<code>path</code> وأسماء الحقول بنفسك واحذف أي معلومة داخلية. لا ترسل token أو cookie أو محتوى نموذج أو بيانات منتج خاصة. أهم ما نحتاجه: عدد selectors الموجود، أسماء/أنواع الحقول، path الخاص بروابط view/edit/delete، ووجود DataTables.</p>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-storage" role="tabpanel" aria-labelledby="tab-storage" tabindex="0" hidden>
+            <article class="card">
+                <h2>أماكن التخزين المحلي</h2>
+                <div class="table-wrap"><table><thead><tr><th>البيان</th><th>المكان</th><th>المحتوى/الملاحظة</th></tr></thead><tbody>
+                    <tr><td>الإعداد</td><td><code>get_config_dir()/config.json</code></td><td>المجلد هو APPDATA/SooqifyImageUpdater على Windows المعتاد، أو مجلد المنزل إذا APPDATA غير موجود. يحوي RootFolder وURL وSyncToken وبقية الإعدادات.</td></tr>
+                    <tr><td>سجل التطبيق</td><td><code>get_config_dir()/logs/sooqify_updater.log</code></td><td>ملف نصي دوّار، مستوى INFO. رسائل الأخطاء قد تحمل روابط/مسارات محلية.</td></tr>
+                    <tr><td>جلسة المتصفح</td><td><code>get_config_dir()/browser_profile/</code></td><td>بروفايل Playwright دائم يحتوي ملفات تعريف الارتباط والجلسة. سجّل الدخول مرة منه؛ ليس بروفايل Chrome الشخصي ولا ينسخه التطبيق.</td></tr>
+                    <tr><td>سجل العمل</td><td><code>get_config_dir()/work_log.jsonl</code></td><td>كل سطر وحدة JSON مستقلة؛ مصدر استرجاع ما لم يصل للخادم.</td></tr>
+                    <tr><td>حالة المزامنة/هوية المشغل</td><td><code>get_config_dir()/work_sync_state.json</code></td><td>آخر مصالحة وأخطاء وdelta وذاكرة <code>identity_cache</code>.</td></tr>
+                    <tr><td>أرشيف الصور</td><td>بجانب مجلد الصور الرئيسي</td><td>نجاح: <code>&lt;root&gt;_uploaded/المسار-النسبي</code>. فشل: <code>&lt;root&gt;_failed/&lt;category&gt;/المسار-النسبي</code>. المصدر لا يُحذف عمداً؛ ينقل مجلد المنتج.</td></tr>
+                </tbody></table></div>
+            </article>
+
+            <article class="card">
+                <h2>ملاحظات أمنية للمطور</h2>
+                <ul>
+                    <li><strong>SyncToken نص صريح:</strong> يكتب في <code>config.json</code> ولا يوجد تشفير للتوكن في الكود. صلاحيات حساب النظام على مجلد المستخدم هي الحماية الحالية.</li>
+                    <li><strong>لا تنشر بروفايل المتصفح أو config أو سجل العمل:</strong> بروفايل المتصفح قد يحمل جلسة دخول نشطة؛ ملفات الإعداد مستثناة من Git عبر <code>.gitignore</code>.</li>
+                    <li><strong>استخدم HTTPS فقط مع خادم معروف:</strong> لا يفرض <code>SyncClient</code> مخطط HTTPS؛ يستعمل العنوان المحفوظ مباشرة.</li>
+                    <li><strong>لا تعِد إضافة Probe قديم يكتب HTML كامل الصفحة:</strong> تعليق <code>uploader.py:68–75</code> يوثق إزالة مسار تشخيص سابق لأنه كان يحفظ DOM/CSRF ولقطات على القرص. لا يوجد ذاك المسار في النسخة الحالية.</li>
+                    <li><strong>بيانات المنتج:</strong> لا تضع قيم Tags أو CSRF أو كلمات مرور في logs أو test snapshots. استخدم fixtures مصطنعة واختبارات قراءة DOM بلا قيم.</li>
+                    <li><strong>أحداث الواجهة:</strong> <code>_push</code> يركب JSON داخل <code>evaluate_js</code> ويبتلع الخطأ؛ لا تمرر HTML خاماً من المتجر إلى <code>innerHTML</code>.</li>
+                </ul>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-defects" role="tabpanel" aria-labelledby="tab-defects" tabindex="0" hidden>
+            <article class="card">
+                <h2>العيوب والمخاطر الموجودة في هذه النسخة</h2>
+                <p class="lead">الأولوية هنا بحسب احتمال الخطأ أو أثره. «مؤكد من المصدر» يعني أن السلوك ظاهر في الكود؛ أما النتائج المتعلقة بـDOM أو الخادم فتظل بحاجة إلى Probe حي. لم أعدّل منطق التطبيق؛ هذه نتائج مراجعة لتوجيه الإصلاح القادم.</p>
+                <div class="table-wrap"><table><thead><tr><th>الأولوية</th><th>المكان/الدليل</th><th>العيب والأثر</th><th>تحسين محدد مقترح</th></tr></thead><tbody>
+                    <tr><td><span class="badge high">حرج قبل التشغيل الحي</span></td><td><code>app/uploader.py:373–420</code></td><td>انتظار تحديث الجدول غير موثوق: <code>current_count != rows.count()</code> يقارن قراءتين متتاليتين بدلاً من العدد السابق، والشرط الأساسي يقارن نص الصف الأول فقط. بعد الانتظار يفتح أول صف، ولا يتحقق أن الصف يحتوي كود البحث. حتى مع عدة نتائج يسجل تحذيراً ثم يختار أول صف. تعليق الكود يقول «أول صف يحتوي الكود» لكن التنفيذ لا يبحث عنه.</td><td>انتظار إشارة DataTables/AJAX موثوقة أو انتظار تغيّر DOM عن baseline؛ استخراج خلايا الصف والتحقق الصريح من مفتاح مطابق. عند صفر/تعدد تطابقات أو غياب رابط صالح: إيقاف المنتج وعدم فتح/تعديل أي صف. إضافة اختبارات لحالة بقاء نتائج البحث القديم.</td></tr>
+                    <tr><td><span class="badge high">حرج قبل التشغيل الحي</span></td><td><code>app/uploader.py:132–174</code></td><td>فحص Tags يسمح بالمرور إذا لم يجد حقلاً، ويستخدم مطابقة substring مثل ID قصير داخل ID آخر/نص عام. إذا كان Product ID شرطاً أساسياً، فهذا fail-open وقد يسمح بمنتج غير مطابق. كما أن <code>product_info.txt</code> لا يحمل Product ID بحسب وصف المصدر، فتكون الحماية غائبة لتلك المنتجات.</td><td>حسم معك هل Product ID مطلوب دائماً. إذا نعم: مطابقة token كاملة بعد تطبيع القيم، ولا تعتبر غياب الحقل نجاحاً؛ ارفض قبل رفع الصورة. إن كان ID غير مضمون، عرّف مسار تحقق بديل موثقاً واختبره على DOM حقيقي.</td></tr>
+                    <tr><td><span class="badge high">خطر تشغيل</span></td><td><code>app/ui/index.html:97–102</code>، <code>app/ui/app.js:201–214, 428–446</code></td><td>checkbox المراجعة غير محدد، الفحص يحدد كل المنتجات، والوضع الآلي مخفي. مع <code>MoveFoldersAfterUpload=True</code> قد يؤدي الضغط على «ابدأ» دون تبديل الخيار إلى رفع كل الدفعة وأرشفة ملفاتها.</td><td>اجعل المراجعة/التأكيد الصريح هو الوضع الأولي الآمن، أو أظهر تأكيداً واضحاً باسم وضع التشغيل وعدد المنتجات ونقل الملفات قبل live run. هذا تغيير سلوكي يحتاج قرار المنتج؛ لا تغيّره دون موافقتك.</td></tr>
+                    <tr><td><span class="badge high">مزامنة مضللة</span></td><td><code>app/sync_client.py:208–239</code></td><td><code>delta</code> يُحسب قبل pull/push ولا يعاد حسابه بعدهما، ثم يشترط <code>in_sync</code> أن يكون delta الأولي صفراً. لو استعاد التطبيق وحدات ناقصة بنجاح، يبقى التقرير «غير متطابق» في تلك الدورة رغم أن العمل أضيف؛ غالباً لا يظهر التطابق إلا في دورة لاحقة.</td><td>ميّز <code>delta_before</code> عن delta النهائي، أو اسحب/احسب الحالة بعد عمليات الدفع/الاسترجاع، واجعل <code>in_sync</code> يعبر عن الوضع النهائي. حدّث اختبارات المصالحة بحيث تثبت حالة دفعة الإصلاح الأولى.</td></tr>
+                    <tr><td><span class="badge high">مصالحة تتأخر</span></td><td><code>app/sync_client.py:192–198, 258–276, 278–284</code></td><td>حتى إذا فشل pull، ينادي الكود <code>_store_state</code> الذي يحدّث <code>last_reconcile_at</code>. ثم يرى <code>auto_reconcile_if_due</code> أن المحاولة ضمن آخر 6 ساعات ويتخطى المحاولة التالية رغم أن <code>last_error</code> مسجل.</td><td>احتفظ بوقت آخر محاولة ووقت آخر نجاح منفصلين؛ لا تحدّث علامة النجاح عند فشل السحب، أو اجعل الخطأ يجبر retry بسياسة backoff قصيرة.</td></tr>
+                    <tr><td><span class="badge medium">هوية غير معروفة تبقى مخزنة</span></td><td><code>app/sync_client.py:120–143</code></td><td>إذا فشل <code>whoami</code>، يخزن <code>raw</code> نفسه داخل <code>identity_cache</code>. بعد إضافة alias للخادم لاحقاً لن يعيد التطبيق السؤال عن الاسم لأن الكاش يعيد النتيجة القديمة إلى الأبد، ما لم يُمسح يدوياً.</td><td>كاش النتائج الناجحة فقط، أو خزّن وقت انتهاء/نسخة للكاش، أو وفر إبطالاً آمناً عند تعديل alias. أضف اختبار فشل أول ثم نجاح بعد تحديث الخادم.</td></tr>
+                    <tr><td><span class="badge high">احتمال فقد عدّ</span></td><td><code>app/work_log.py:78–89</code>، <code>app/uploader.py:461–475</code></td><td>مفتاح العمل فريد حسب المصدر/النوع/item_id/اليوم فقط؛ عمليتان لنفس المنتج في اليوم نفسه أو لمستخدمين مختلفين تنتجان المفتاح نفسه، و<code>units_by_key</code> يطوي التكرار. آخر نسخة قد تستبدل/تخفي العمل السابق. هل هذا مقصود كوحدة واحدة لكل منتج/يوم؟</td><td>حسم سياسة التقرير أولاً. إن كانت كل عملية مستقلة مطلوبة، أضف معرف عملية ثابتاً وفريداً للعقد على الجانبين واختبر idempotency. لا تضف الوقت عشوائياً؛ إعادة المحاولة يجب أن تحافظ على نفس المفتاح.</td></tr>
+                    <tr><td><span class="badge high">التسجيل المحلي ليس أولاً في كل الحالات</span></td><td><code>app/sync_client.py:300–308</code></td><td>قبل <code>append_unit()</code> ينفذ <code>resolve_operator_identity()</code>، وقد يرسل طلب <code>whoami</code> للشبكة بمهلة تصل إلى 15 ثانية. لذلك تعليق «التسجيل المحلي أولاً ودائماً» لا يطابق الترتيب؛ إغلاق قسري/توقف أثناء الطلب قد يترك تحديث متجر بلا سجل محلي.</td><td>حل الهوية قبل لحظة تسجيل العمل، أو اجعل تسجيل الوحدة المحلية فوراً بالاسم الخام ثم عالج الربط وفق عقد واضح. أضف اختباراً يثبت أن سجل العمل يُكتب قبل أي request شبكي.</td></tr>
+                    <tr><td><span class="badge high">إعدادات لا تعمل كما يتوقع المستخدم</span></td><td><code>app/config.py:21,27</code>، <code>app/sync_client.py:45–47</code>، <code>app/main.py:343–350</code></td><td><code>SyncEnabled</code> لا يوقف sync إذا بقي URL وToken، و<code>Headless</code> لا يتحكم بالمتصفح؛ القيمتان تُحفظان/تظهران في الواجهة لكن لا تحكمان التنفيذ.</td><td>إما تطبيق المفتاحين عند إنشاء العميل/اختيار headless أو إزالة الحقول وتوضيح السياسة. أضف اختبارات toggle=true/false واختبار مرئي/مخفي.</td></tr>
+                    <tr><td><span class="badge medium">Brave قد يشغل متصفحاً آخر بصمت</span></td><td><code>app/main.py:101–122</code></td><td>إذا كان الاختيار Brave ولم يوجد أي executable في القائمة، لا يضع <code>executable_path</code>؛ <code>launch_persistent_context</code> قد يستخدم Chromium الافتراضي لـPlaywright مع بروفايل جديد بدلاً من إظهار أن Brave غير مثبت.</td><td>تحقق من وجود البرنامج المطلوب وأظهر خطأ واضحاً، أو اعرض fallback للمستخدم واطلب موافقته بدلاً من التبديل الصامت.</td></tr>
+                    <tr><td><span class="badge high">منتجات تُبحث بمفتاح غير المقصود</span></td><td><code>app/scanner.py:49–52</code> و<code>app/uploader.py:434–438</code></td><td>منتج يحتوي <code>Search Code</code> فقط يظهر على أنه صالح، لكن البحث الفعلي لا يستخدم <code>product.search_code</code>؛ ينتقل إلى اسم أو اسم مجلد بدلاً منه.</td><td>بعد تأكيد معنى Search Code عندك وعند AlphaCode، أضفه صراحة إلى ترتيب مفاتيح البحث، وحدد أولوية style/search/name، واختبر كل صيغة ملف.</td></tr>
+                    <tr><td><span class="badge medium">بعض المنتجات ذات مفتاح احتياطي تُتخطى</span></td><td><code>app/scanner.py:49–52</code>، <code>app/main.py:395–403</code>، <code>app/uploader.py:434–440</code></td><td><code>has_search_key</code> لا يضم <code>name_ar</code> أو اسم المجلد، رغم أن <code>process_product_folder</code> يستطيع استخدام الاسم العربي/اسم المجلد لاحقاً. المنتج الذي لا يحوي إلا أحدهما يُتخطى قبل الوصول لذلك fallback.</td><td>وحّد تعريف مفتاح البحث في خاصية/دالة واحدة مستخدمة من الواجهة والـpipeline، وضف اختبارات للاسم العربي فقط واسم مجلد صالح فقط. قرر أيضاً هل Product ID وحده يكفي للبحث أم لا.</td></tr>
+                    <tr><td><span class="badge medium">مراجعة قد تُترك بلا حفظ ويُعلن عنها كنجاح</span></td><td><code>app/main.py:410–436, 475</code>، <code>app/ui/app.js:459–464</code></td><td>نتيجة dry run الناجحة تضاف إلى <code>results.success</code> قبل اعتماد المستخدم. بعد 5 دقائق من الانتظار يسجل warning ثم يكمل للمنتج التالي، ولا يغير النتيجة إلى timeout؛ واجهة النهاية تعدّها ضمن «نجح» رغم أن الحفظ قد لا يكون حصل.</td><td>افصل حالة <code>review_pending/review_timeout/saved</code> عن النجاح الفعلي. لا تنتقل بعد المهلة ولا تعلن حفظاً قبل دليل واضح من URL/الاستجابة.</td></tr>
+                    <tr><td><span class="badge medium">عدّ الصور وإعادة المحاولة غير مثبتين بالكامل</span></td><td><code>app/uploader.py:57–65, 83–98, 177–280</code></td><td>إذا فشل تقييم files للحقل الرئيسي يرجع <code>True</code> احتياطياً؛ المعرض يزيد العداد بعد <code>set_input_files</code> دون قراءة نتيجة upload HTTP. وإذا وقع استثناء بعد اختيار الملفات/بعد نقر اعتماد، تعيد المحاولات الثلاث المسار كله وقد تعيد اختيار/حفظ ملفات سبق أن وصلت.</td><td>استخدم تحقق الحقل/الاستجابة التي يوفرها الموقع بعد تأكيد DOM، وميّز selected/uploaded/saved. قبل retry افحص الحالة الحالية/نتيجة الخادم واجعل العملية idempotent؛ لا تعتمد على 100ms كضمان AJAX.</td></tr>
+                    <tr><td><span class="badge medium">روابط نسبية محتملة</span></td><td><code>app/uploader.py:408–420</code></td><td>يمرر <code>href</code> كما هو إلى <code>page.goto</code>. إذا أعاد الموقع href نسبياً مثل <code>/admin/item/view/123</code> فقد يرفض Playwright عنواناً غير مطلق؛ لا يوجد <code>urljoin</code>.</td><td>تحقق من Probe. إن كان href نسبياً استخدم <code>urljoin(page.url, href)</code> وثبّت اختبار href مطلق/نسبي.</td></tr>
+                    <tr><td><span class="badge medium">تلون صف خاطئ</span></td><td><code>app/ui/app.js:513–523</code> مع حدث <code>main.py:421–426</code></td><td>الحدث يرسل اسم المجلد فقط والواجهة تبحث عن أول صف basename مطابق. وجود <code>BrandA/A1</code> و<code>BrandB/A1</code> يجعل الحالة قابلة للتطبيق على الصف الخطأ.</td><td>أرسل المسار الكامل/معرف المنتج الثابت في حدث product_done، وطابق <code>dataset.path</code> كاملاً بعد توحيد فواصل المسار.</td></tr>
+                    <tr><td><span class="badge medium">حالة المراجعة بلا تنسيق CSS</span></td><td><code>app/main.py:417–420</code>، <code>app/ui/app.js:519–522</code>، <code>app/ui/styles.css:121–123</code></td><td>الواجهة تضيف <code>status-review</code> لكن CSS يعرف <code>status-preview</code> فقط؛ مراجعة المنتج قد لا تظهر بصرياً كحالة مختلفة.</td><td>وحّد اسم الحالة بين Python/JS/CSS واختبر حدث review في DOM.</td></tr>
+                    <tr><td><span class="badge medium">ترتيب الصورة الرئيسية مبهم</span></td><td><code>app/scanner.py:83–92</code></td><td>الترتيب رقمي عام؛ ملف <code>0.png</code> يسبق <code>1.png</code>، و<code>1.jpg</code>/<code>1.png</code> لهما المفتاح الرقمي نفسه فيعتمدان على ترتيب <code>os.listdir</code>. التعليق/دليل الاستخدام يقول إن 1 هي الرئيسية دائماً لكن التنفيذ لا يفرض ذلك.</td><td>حسم اتفاق تسمية الملفات، ثم عرّف مفتاحاً حتمياً يجعل ملف الرئيسية المعتمد أولاً ويرفض/يبلغ عن الأسماء المكررة. أضف اختبارات 0 و1 وامتدادات متساوية.</td></tr>
+                    <tr><td><span class="badge medium">حالة Sync معرضة لسباق كتابة</span></td><td><code>app/work_log.py:169–209</code> و<code>Api.reconcile_sync</code></td><td>الواجهة تسمح بالمصالحة اليدوية أثناء تشغيل الدفعة. حفظ sync state ذري لكنه ليس مقفلاً؛ قارئان/كاتبان قد يقرآن نسخة قديمة ثم يستبدل أحدهما نتيجة الآخر، أو تضيع تحديثات identity_cache.</td><td>منع المصالحة اليدوية أثناء run أو إضافة قفل قراءة/تعديل/كتابة داخل العملية واختبار التزامن. الذرية تمنع ملفاً نصفياً لكنها وحدها لا تمنع ضياع تحديث متزامن.</td></tr>
+                    <tr><td><span class="badge medium">الفحص والتشغيل قد يتداخلان</span></td><td><code>app/main.py:230–280</code>، <code>app/ui/app.js:110–116, 180, 201–214</code></td><td>الفحص يمنع فحصاً ثانياً فقط والتشغيل يمنع تشغيلين فقط؛ لا يوجد حارس يمنع بدء run خلال scan أو إعادة scan وقت التشغيل، والواجهة لا تقفل زر البدء طوال الفحص. قد تتغير الملفات/قائمة الاختيار بينما يجري العمل.</td><td>اجعل حالة التطبيق تمنع العمليات المتعارضة من Python والواجهة معاً، أو صمّم snapshot ثابتاً للمسارات المختارة واختبر run/scan المتزامنين.</td></tr>
+                    <tr><td><span class="badge medium">إيقاف التشغيل يرسل حدثين</span></td><td><code>app/main.py:390–392, 450–475</code>، <code>app/ui/app.js:459–475</code></td><td>عند اكتشاف <code>stop_requested</code> يرسل <code>run_stopped</code> ثم يكمل مسار النهاية ويرسل <code>run_finished</code> أيضاً؛ الواجهة قد تعيد الفحص مرتين وتشغل نغمة/رسالة انتهاء بعد رسالة الإيقاف. الإيقاف لا يقطع المنتج الحالي وقد ينتظر حتى مهلة الاعتماد اليدوي 5 دقائق.</td><td>اجعل مسار الإيقاف ينتهي بحالة واحدة واضحة (أو حمّل حدث finished بعلامة stopped)، واجعل الواجهة لا تعالج النتيجة مرتين؛ وفر cancellation point أثناء انتظار المراجعة.</td></tr>
+                    <tr><td><span class="badge medium">حفظ الحالة يخفي فشله</span></td><td><code>app/work_log.py:184–209</code>، <code>sync_client.py:278–284</code></td><td><code>save_sync_state</code> يرجع False عند خطأ، لكن <code>_store_state</code> يتجاهل النتيجة؛ مسار الفشل لا ينظف دائماً الملف المؤقت.</td><td>سجّل الفشل، نظّف الملف المؤقت في finally، واجعل نتيجة الحفظ ظاهرة للواجهة/الاختبار.</td></tr>
+                    <tr><td><span class="badge medium">أنواع/ترميز غير متحقق منها</span></td><td><code>app/config.py:48–60</code>، <code>main.py:334–336</code>، <code>scanner.py:65–80</code>، <code>work_log.py:135–157</code></td><td>الـJSON يدمج أي أنواع كما هي؛ <code>BatchLimit="10"</code> قد يكسر المقارنة الرقمية. metadata أو JSONL بترميز غير UTF-8 قد يرمي <code>UnicodeDecodeError</code> غير الملتقط ويوقف الفحص/قراءة السجل.</td><td>تحقق من schema config عند التحميل، طبّع العدد إلى int غير سالب، وتعامل مع أخطاء الترميز برسالة واضحة لكل ملف/سطر مع استمرار آمن.</td></tr>
+                    <tr><td><span class="badge medium">رسائل الفشل وتصنيف الأرشيف مقترنة نصياً</span></td><td><code>app/main.py:528–548</code></td><td>تصنيف الفشل يعتمد على احتواء الرسالة العربية على جمل حرفية؛ تعديل النص يكسر category بصمت إلى «أخطاء أخرى».</td><td>استخدم رمز خطأ ثابتاً في <code>UploadResult</code> أو enum، واجعل النص للعرض فقط. حافظ على الفئات الحالية إن كان تنظيم الأرشيف يعتمد عليها.</td></tr>
+                    <tr><td><span class="badge medium">وثائق المستودع غير متطابقة</span></td><td><code>README.md</code>، <code>docs/user-guide.html</code>، هذا الدليل القديم</td><td>README يقول PySide/PyQt و<code>python main.py</code> من الجذر مع أن التطبيق يستخدم PyWebView والملف هو <code>app/main.py</code>. دليل المستخدم يصف dry run كأنه لا يرفع شيئاً. دليل المطور القديم وصف حذف صور Spartan آلياً وبروفايل Chrome افتراضي منسوخ؛ كلاهما لا يطابق المصدر الحالي.</td><td>حدّث بقية الوثائق في تغيير منفصل بعد موافقتك؛ حالياً هذا الملف وحده أعاد وصف الدليل التقني وأبقى التناقضات الخارجية ظاهرة.</td></tr>
+                </tbody></table></div>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
+            <article class="card">
+                <h2>المشاكل التي واجهتها النسخة وما حُرس في الاختبارات/الكود</h2>
+                <p>هذه معلومات من تعليقات الكود والاختبارات داخل المستودع. لم أتحقق مستقلاً من سجلات AlphaCode أو تشغيل حقيقي على حساب متجر.</p>
+                <div class="table-wrap"><table><thead><tr><th>المشكلة الموثقة</th><th>المعالجة الموجودة حالياً</th><th>ما لا يزال يجب الحفاظ عليه/التحقق منه</th></tr></thead><tbody>
+                    <tr><td>تلف <code>config.json</code> أو ضياع إعدادات عند انقطاع الكتابة</td><td><code>config.py</code> يكتب إلى temp ثم <code>fsync/os.replace</code>؛ اختبار يحاكي فشل الاستبدال.</td><td>لا تستبدل الحفظ الذري بفتح مباشر بوضع <code>w</code>. الذرية لا تعالج تعارض كاتبين يحدّثان حقولاً مختلفة.</td></tr>
+                    <tr><td>مقابض مفتوحة عند قراءة بيانات آلاف المنتجات</td><td><code>parse_product_info</code> يقرأ داخل <code>with</code> مرة واحدة والقيم وName lines من المرور نفسه.</td><td>أبقِ إغلاق الملفات مضموناً، واختبر الأداء/الترميز على بيانات حقيقية منزوعة الحساسية.</td></tr>
+                    <tr><td>ترتيب صور أو رفع جزئي كان يُعلن نجاحاً</td><td>هناك فحص لعدد حقول الصور وحاجز يمنع الضغط على اعتماد إذا العدد أقل من المطلوب.</td><td>لا تزل شرط <code>uploaded_count &lt; expected_count</code> ولا تسمح بحفظ الدفعة الناقصة. لكن طوّر التحقق إلى تأكيد upload من الخادم.</td></tr>
+                    <tr><td>صور معرض قديمة ومنع المتجر الإضافة المتكررة</td><td>النسخة الحالية ترفض المنتج عند العثور على روابط حذف قديمة وتطلب حذفاً يدوياً. انتبه: اختيار الصورة الرئيسية يحصل قبل فحص روابط الصور القديمة؛ إذا كان الـplugin يرفع فور اختيار الملف فهناك أثر محتمل قبل الرفض.</td><td><strong>لا تحذف صوراً تلقائياً ولا تعِد تفعيل نقرات remove</strong> قبل فهم سلوك Spartan والـendpoint والنسخ الاحتياطي. تحقق أيضاً هل اختيار الصورة الرئيسية يرفعها فوراً.</td></tr>
+                    <tr><td>تصادم أسماء مجلدات المنتجات عند الأرشفة</td><td><code>_relocate_product</code> يحافظ على المسار النسبي، و<code>_unique_destination</code> يضيف لاحقة ولا يحذف.</td><td>لا تستخدم <code>shutil.rmtree</code> أو استبدالاً صامتاً للوجهة. اختبارات <code>test_upload_guards.py</code> تثبت بقاء الأرشيفات السابقة.</td></tr>
+                    <tr><td>تحريك مسار خارج RootFolder</td><td><code>_is_inside</code> يحرس المعالجة والنقل ضد <code>..</code> والأقراص المختلفة.</td><td>لا تتجاوز الحارس. إذا أضيف دعم symlink/junction فاختبر المسار الحقيقي أيضاً.</td></tr>
+                    <tr><td>انتهاء جلسة المتجر كان يفشل كل المنتجات واحداً واحداً</td><td><code>verify_store_session</code> يسبق الدفعة ويصدر رسالة عامة واحدة.</td><td>Selectors/مسارات login صلبة؛ أعد Probe عند تغيير لوحة الموقع.</td></tr>
+                    <tr><td>فشل الشبكة يؤدي إلى اختفاء العمل من التقرير</td><td>المقصود أن يكون السجل المحلي قبل push؛ المصالحة كاملة <code>since=""</code> لإعادة الرفع/الاسترجاع. لكن حالياً نداء <code>whoami</code> قد يحدث قبل <code>append_unit</code>، كما هو موضح في العيوب.</td><td>تعليقات الاختبارات تذكر حادثة 1324 وحدة مفقودة بمشروع AlphaCode. لا تغيّر pull إلى incremental watermarks قبل معالجة سبب الفقد واختبار الاستعادة.</td></tr>
+                    <tr><td>هوية مشغل مختلفة عن الاسم القانوني</td><td><code>whoami</code> ثم <code>identity_cache</code> بدل تخمين ترجمة الأسماء.</td><td>الكاش يخزن الاسم المحلي عند الفشل أيضاً؛ يلزم قرار لإبطال القيمة إذا أضيف alias لاحقاً.</td></tr>
+                    <tr><td>فتح Chrome بملف شخصي افتراضي كان مرفوضاً/بطيئاً وفق التعليقات القديمة</td><td>الكود الحالي يستخدم بروفايل مستقل دائم للتطبيق ولا ينسخ Profile المستخدم؛ لا يوجد نسخ بروفايل في مسار التشغيل الحالي.</td><td>لا تحذف ملف <code>browser_profile</code> أثناء وجود التطبيق أو جلسة تسجيل الدخول. وصف المشكلة التاريخية لا يثبت سلوك إصدار Chrome الحالي.</td></tr>
+                </tbody></table></div>
+            </article>
+
+            <article class="card">
+                <h2>العقود التي لا تتغير من طرف واحد</h2>
+                <ol>
+                    <li><strong>عقد وحدة العمل:</strong> <code>record_kind</code>، <code>work_unit</code>، <code>schema_version</code>، <code>source</code>، <code>item_type</code>، أسماء الحقول والحالات ومفتاح <code>WU::...</code> يجب أن تتطابق مع <code>backend/app/services/work_units.py</code> ونظير الاختبار في AlphaCode. المصدر الآخر غير موجود في هذا المستودع.</li>
+                    <li><strong>المصالحة الكاملة:</strong> الطلب الحالي يسحب <code>since=""</code> قصداً؛ لا تعد للسحب التزايدي بسبب مشكلة فقد موثقة في تعليقات الاختبارات. أضف أي تحسين لعرض الفرق دون إخفاء السجلات القديمة.</li>
+                    <li><strong>منع الحفظ الجزئي:</strong> الرفع الناقص لا يضغط «اعتماد». أي إعادة محاولة يجب ألا تكرر صوراً أرسلها المكوّن بالفعل.</li>
+                    <li><strong>سلامة الأرشيف:</strong> لا حذف للمصدر أو وجهة أرشيف سابقة، لا نقل خارج الجذر، وحافظ على الشجرة النسبية لتفادي تصادم أسماء المنتجات.</li>
+                    <li><strong>البيانات الخارجية ليست حقيقة ثابتة:</strong> selectors وحقول plugin وقواعد تصنيف tags تحتاج fixture/Probe من لوحة فعلية قبل تعديلها.</li>
+                    <li><strong>فرق المراجعة والرفع:</strong> أي تغيير في UI default أو أرشفة المجلدات قرار سلوكي؛ لا تفترض أن الاسم «Dry Run» يضمن عدم تواصل plugin مع الخادم.</li>
+                </ol>
+                <p class="small">اختبار العقد في <code>tests/test_work_unit_contract.py</code> يثبت بصمة محلية ويطلب تحديث الطرفين؛ لكنه لا يستطيع استيراد كود AlphaCode أو التأكد من نشره فعلياً.</p>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-style" role="tabpanel" aria-labelledby="tab-style" tabindex="0" hidden>
+            <article class="card">
+                <h2>أسلوب كتابة الكود المتبع والمطلوب</h2>
+                <ul>
+                    <li><strong>فصل المسؤوليات:</strong> config في <code>config.py</code>، قراءة ملفات في <code>scanner.py</code>، DOM/Playwright في <code>uploader.py</code>، تنسيق الخيوط والأحداث في <code>main.py</code>، سجل العمل في <code>work_log.py</code>، HTTP فقط في <code>sync_client.py</code>.</li>
+                    <li><strong>Python:</strong> أسماء الدوال والمتغيرات <code>snake_case</code>، الثوابت <code>UPPER_SNAKE_CASE</code>، الكلاسات <code>PascalCase</code>. أضف docstring يشرح المدخلات والقيمة المرجعة والآثار الجانبية.</li>
+                    <li><strong>انتظار الموقع:</strong> استخدم محددات Playwright ومهل صريحة؛ لا تعتمد على <code>sleep</code> عشوائي كدليل نجاح. انتظر حالة DOM/الاستجابة التي تؤكدها إضافة الموقع.</li>
+                    <li><strong>الأخطاء:</strong> لا تبتلع استثناءً دون log/رسالة حالة. إذا كان الخطأ متوقعاً، أعد نتيجة/رمزاً واضحاً بدل الاعتماد على نص عربي في منطق التصنيف.</li>
+                    <li><strong>النتائج:</strong> حافظ على عقد <code>UploadResult</code>/<code>SearchResult</code> أو وسّعه بوضوح. ميّز «اختير في المتصفح» عن «رفع للخادم» وعن «حُفظ المنتج».</li>
+                    <li><strong>واجهة JS:</strong> تحديث DOM بطريقة آمنة، واستخدم <code>textContent</code> للنصوص القادمة من Python/الموقع. ثبّت أسماء أحداث <code>_push</code> مع <code>onBackendEvent</code>.</li>
+                    <li><strong>استيراد Python:</strong> التطبيق يضيف مجلد <code>app/</code> إلى <code>sys.path</code> ويستخدم imports مسطحة مثل <code>import scanner</code>. الاختبارات تقلد ذلك في <code>tests/conftest.py</code>. لا تخلط imports نسبية قبل تحويل كل نقاط الدخول والاختبارات معاً.</li>
+                    <li><strong>إعداد جديد:</strong> إذا أضفت key، حدّث <code>DEFAULT_CONFIG</code>، نموذج الإعداد الأول إذا لزم، إعدادات HTML، قراءة/حفظ JS، وحالات الاختبار. لا تترك checkbox لا يؤثر على runtime.</li>
+                    <li><strong>لا أسرار في Git:</strong> لا تضع URL خاصاً أو token أو session أو بيانات متجر حقيقية في أمثلة/fixtures.</li>
+                </ul>
+            </article>
+
+            <article class="card">
+                <h2>خطوات إضافة دالة جديدة بشكل صحيح</h2>
+                <ol class="flow">
+                    <li><strong>حدد مكانها:</strong> هل هي تحويل بيانات خالص (scanner/work_log)، تعامل DOM (uploader)، I/O HTTP (sync_client)، أم orchestration (main)؟ لا تضع كل المنطق داخل UI أو <code>_run_pipeline</code>.</li>
+                    <li><strong>اكتب العقد قبل التنفيذ:</strong> اسم واضح، parameters ذات defaults مفهومة، نوع النتيجة/الشكل، وما إذا كانت تعدّل DOM أو ملفات أو الشبكة. اجعل الside effects ظاهرة.</li>
+                    <li><strong>حدد المستدعي:</strong> أضفها إلى طبقة واحدة أعلى. لو احتاجتها الواجهة، أضف API صريحاً ثم حدث UI؛ لا تستدع Python مباشرة من JavaScript خارج <code>window.pywebview.api</code>.</li>
+                    <li><strong>إن تعاملت مع الموقع:</strong> ضع selector/route كـconstant، افحص الصفحة الفعلية بالـProbe، أضف timeout، واترك DOM غير المتوقع يفشل بأمان. لا تضغط/تحذف قبل التحقق.</li>
+                    <li><strong>إن تعاملت مع sync:</strong> طابق payload مع AlphaCode، حدّث الطرفين واختباري العقد والبصمة معاً. استخدم مفتاحاً idempotent يحافظ على إعادة المحاولة.</li>
+                    <li><strong>أضف اختباراً:</strong> اختبر النجاح، المدخل غير الصحيح، الوقت المستقطع، غياب selector، والآثار الجانبية. استخدم FakePage/mock requests و<code>isolated_config_dir</code>؛ لا تتصل بمتجر أو خادم حقيقي في اختبار الوحدة.</li>
+                    <li><strong>شغل الفحوص:</strong> <code>python -m pytest -q</code>، وفحص syntax لـPython/JavaScript، ثم بناء Windows في workflow. لا تعتبر test mock دليلاً على أن selectors ما زالت صحيحة حياً.</li>
+                    <li><strong>راجع الملفات المتغيرة:</strong> التزم بالنطاق المصرح به في المهمة؛ لا تشغل <code>build_history.sh</code> لمجرد تقسيم التغييرات إلى commits تاريخية.</li>
+                </ol>
+                <h3>قالب مبسط لدالة مساعدة</h3>
+                <pre>def verify_something(page, expected_id, *, timeout_ms=8_000, logger=None):
+    """Return (matched: bool, reason: str); do not mutate the form."""
+    if not expected_id:
+        return False, "missing_expected_id"
+
+    try:
+        # Wait for a verified selector; then compare a normalized exact token.
+        # Never interpret an absent field as a positive identity match.
+        ...
+    except TimeoutError as exc:
+        if logger:
+            logger.warning("Verification timed out: %s", exc)
+        return False, "verification_timeout"</pre>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-tests" role="tabpanel" aria-labelledby="tab-tests" tabindex="0" hidden>
+            <article class="card">
+                <h2>الاختبارات الموجودة وحدودها</h2>
+                <div class="table-wrap"><table><thead><tr><th>الملف</th><th>ما يغطيه</th><th>ما لا يثبته</th></tr></thead><tbody>
+                    <tr><td><code>tests/test_scanner.py</code></td><td>تحليل metadata، ترتيب بعض الصور، عدم تسريب file handle، ملفات ناقصة، تخطي الأرشيف.</td><td>لا يختبر UnicodeDecodeError، مفتاح Search Code وحده، صور 0/أسماء متساوية، أو folder parent مع صور مباشرة وsubfolders.</td></tr>
+                    <tr><td><code>tests/test_upload_guards.py</code></td><td>FakePage للصور الناقصة، منع الحفظ الجزئي، وضع المراجعة، session check، الحراسة على النقل والأرشيف، إعدادات config الذرية.</td><td>لا يختبر HTML/Sooqify الحقيقي، انتظار DataTables أو مطابقة الصف، حقول Tags الحقيقية، network completion، روابط relative، أو browser كامل.</td></tr>
+                    <tr><td><code>tests/test_work_log_sync.py</code></td><td>JSONL، استرجاع المصالحة، فشل pull/push، 403، حد الدفعة، identity cache، إعادة المحاولة.</td><td>يستخدم FakeSyncServer؛ لا يثبت أن نسخة sync.php المنشورة تطابق البروتوكول. توجد ثغرات مصالحة مذكورة في هذا الدليل لم تغطها الحالات الحالية.</td></tr>
+                    <tr><td><code>tests/test_work_unit_contract.py</code></td><td>بصمة محلية لشكل وحدة العمل والثوابت ومفتاحها.</td><td>لا يصل إلى المستودع الآخر للتحقق؛ يجب مزامنة البصمة يدوياً على الجانبين.</td></tr>
+                </tbody></table></div>
+                <h3>تشغيل محلي من جذر المستودع</h3>
+                <pre>python -m venv .venv
+# Windows: .venv\\Scripts\\activate
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m playwright install chromium
+python -m pytest -q
+python app/main.py</pre>
+                <p>قد يحتاج PyWebView على Windows إلى WebView2 Runtime، وعلى Linux/Mac إلى backend النظام المناسب. عند اختيار Chrome/Edge/Brave قد يحتاج البرنامج المثبت/المسار المناسب. تثبيت مكتبة Playwright وحده لا يضمن تنزيل browser binary للتشغيل المحلي.</p>
+                <div class="callout warn"><strong>نتيجة التحقق في بيئة إعداد هذا الدليل:</strong> حاولت تشغيل <code>python -m pytest -q</code>، لكنه توقف قبل الاختبارات لأن <code>pytest</code> غير مثبت هنا (<code>No module named pytest</code>). لذلك لا أصف الاختبارات بأنها نجحت أو فشلت منطقياً.</div>
+            </article>
+
+            <article class="card">
+                <h2>البناء والإصدار</h2>
+                <ul>
+                    <li>المواصفات في <code>build/app.spec</code> تستخدم PyInstaller بنمط <code>onedir</code> وتجمع واجهة UI، Playwright والمتصفح المجهز.</li>
+                    <li>Workflow <code>.github/workflows/build-windows-exe.yml</code> يعمل على push لفروع <code>main/master</code>، وعلى tags التي تبدأ بـ<code>v</code>، أو يدوياً. push فرع feature الحالي وحده لا يطابق trigger.</li>
+                    <li>كل تشغيل يرفع Artifact ZIP؛ إنشاء GitHub Release يتم فقط إذا كان ref tag يبدأ بـ<code>v</code>. المخرج ليس ملف EXE منفرداً؛ الملف المضغوط يحوي مجلد تشغيل onedir.</li>
+                    <li>التثبيت من المصدر في README غير صحيح كما هو: الملف التنفيذي هو <code>app/main.py</code> لا <code>main.py</code> بجذر المشروع؛ المتطلبات الفعلية <code>playwright</code> و<code>pywebview</code> و<code>requests</code>، وليست PySide/PyQt.</li>
+                    <li><code>build_history.sh</code> ليس خطوة بناء. هو سكربت لإنشاء commits بتواريخ قديمة ويحتوي حالة <code>git init</code>/<code>branch -M main</code> إذا لم يجد .git؛ لا تشغله في checkout مشترك أو دون طلب صريح ومراجعة كاملة.</li>
+                </ul>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-questions" role="tabpanel" aria-labelledby="tab-questions" tabindex="0" hidden>
+            <article class="card">
+                <h2>نقاط لا يمكن حسمها من هذا المستودع وحده</h2>
+                <p class="lead">وضعت المجهول بوضوح بدل اختراع حقيقة عن المتجر أو AlphaCode. إجاباتك ستحدد هل نحدّث وصف الدليل فقط أم تحتاج إصلاحات لاحقاً.</p>
+                <ol>
+                    <li><strong>Search Code:</strong> في <code>style_code.txt</code>، ما المقصود به تحديداً؟ هل يقبل البحث به في لوحة سوقيفاي، أم هو رقم مورد/مفتاح داخلي؟ وهل توجد صيغة ملف فعلية آمنة لمشاركتها بعد حذف أسماء الأشخاص والمنتج؟</li>
+                    <li><strong>Product ID وTags:</strong> هل Product ID مضمون الوجود في مصدر الملفات؟ كيف يظهر في صفحة التعديل: حقل نصي، select، tags bubbles، أم مكان آخر؟ إذا لم يظهر الحقل، هل المطلوب رفض المنتج احتياطياً أم السماح بالبحث بالـStyle Code؟</li>
+                    <li><strong>إضافة Spartan:</strong> عند اختيار ملف في <code>input.spartan_image_input</code>، هل ترفعه الإضافة إلى الخادم فوراً عبر AJAX أم لا ترسله إلا بعد زر «اعتماد»؟ ما المحدد/الحالة التي تثبت اكتمال رفع صورة معرض؟ وهل حذف الصور القديمة عبر remove link مسموح وآمن أم يجب أن يبقى يدوياً؟</li>
+                    <li><strong>نجاح الحفظ وروابط الصفحات:</strong> هل رابط النجاح دائماً <code>/admin/item/list</code>؟ وهل <code>href</code> لروابط view/edit يرجع مطلقاً أم نسبياً؟ شغّل Probe في القائمة، صفحة العرض وصفحة التعديل وأرسل الناتج بعد تنقيحه.</li>
+                    <li><strong>AlphaCode:</strong> هل المفتاح الحالي يعني وحدة واحدة لكل منتج في اليوم؟ هل التقارير تجمع <code>quantity</code> كعدد صور أم تتوقع منتجاً واحداً؟ أرسل مقتطفات معالجة pull/push/whoami أو أسماء الحقول من <code>sync.php</code>/<code>work_units.py</code> بعد حذف الأسرار؛ لا ترسل Sync Token أو كلمة مرور.</li>
+                    <li><strong>وضع البدء:</strong> هل تريد عمداً أن يكون الوضع الآلي هو الافتراضي عند فتح التطبيق، أم كان المفترض أن يبدأ بوضع المراجعة؟ وهل نقل المجلدات تلقائياً بعد الرفع والفشل سياسة مقصودة دائماً؟</li>
+                    <li><strong>البيانات والصور:</strong> هل قاعدة الإدخال الرسمية تضمن مجلداً واحداً لكل منتج، وصورة رئيسية اسمها <code>1.*</code> ولا توجد <code>0.*</code> أو أكثر من ملف برقم 1؟ السكانر الحالي recursive ويمسك الصور المباشرة فقط.</li>
+                </ol>
+                <div class="callout success"><strong>مخرجات Probe المفيدة:</strong> افتح Console في صفحة قائمة/عرض/تعديل مصرح بها، شغّل المقطع الموجود في تبويب «الموقع والمزامنة»، ثم أرسل فقط أعداد selectors وخصائص الحقول ومسارات الروابط بعد التأكد من خلوها من معلومات خاصة. لا ترسل HTML كامل الصفحة أو cookies أو token.</div>
+            </article>
+        </section>
+
+        <footer>دليل تقني مبني على مصدر هذا المستودع فقط · Sooqify Image Updater · آخر مراجعة 2026-09-30</footer>
     </main>
 
-    <footer>Sooqify Image Updater · تطوير يوسف الحمزي</footer>
+    <script>
+        (() => {
+            const tabs = Array.from(document.querySelectorAll('[role="tab"][data-panel]'));
+            const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
 
+            function activateTab(tab, updateHash = true, moveFocus = false) {
+                const panelId = tab.dataset.panel;
+                tabs.forEach((candidate) => {
+                    const selected = candidate === tab;
+                    candidate.setAttribute("aria-selected", String(selected));
+                    candidate.tabIndex = selected ? 0 : -1;
+                });
+                panels.forEach((panel) => {
+                    const active = panel.id === panelId;
+                    panel.classList.toggle("active", active);
+                    panel.hidden = !active;
+                });
+                if (updateHash) history.replaceState(null, "", `#${panelId.replace("panel-", "")}`);
+                if (moveFocus) tab.focus();
+            }
+
+            tabs.forEach((tab, index) => {
+                tab.addEventListener("click", () => activateTab(tab));
+                tab.addEventListener("keydown", (event) => {
+                    let next = index;
+                    if (event.key === "ArrowLeft" || event.key === "ArrowDown") next = (index + 1) % tabs.length;
+                    else if (event.key === "ArrowRight" || event.key === "ArrowUp") next = (index - 1 + tabs.length) % tabs.length;
+                    else if (event.key === "Home") next = 0;
+                    else if (event.key === "End") next = tabs.length - 1;
+                    else return;
+                    event.preventDefault();
+                    activateTab(tabs[next], true, true);
+                });
+            });
+
+            const requested = location.hash ? `panel-${location.hash.slice(1)}` : "";
+            const initial = tabs.find((tab) => tab.dataset.panel === requested) || tabs[0];
+            if (initial) activateTab(initial, false);
+        })();
+    </script>
 </body>
-
 </html>
