@@ -203,6 +203,18 @@
               </div>
             </div>
 
+            <!-- حالة سجل العمل والمزامنة: الأرقام الخام، لا "تمت بنجاح" فقط.
+                 فارق العدد بين المحلي والخادم يجب أن يُرى دائماً. -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>حالة سجل العمل</label>
+              <div id="syncStatusBox" class="muted" style="line-height:1.9;">لم تُقرأ بعد.</div>
+              <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-ghost" id="refreshSyncStatusBtn">تحديث الحالة</button>
+                <button type="button" class="btn btn-ghost" id="reconcileSyncBtn"
+                        title="سحب كامل من الخادم ورفع أي وحدة عمل ناقصة عليه">مزامنة كاملة الآن</button>
+              </div>
+            </div>
+
             <!-- معلومات المطور والدعم الفني -->
             <div class="form-section-title">المطور والدعم الفني</div>
             <div class="developer-card" style="grid-column: 1 / -1;">

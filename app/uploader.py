@@ -8,6 +8,8 @@
 import os
 import time
 
+import work_log
+
 # ---------------------------------------------------------
 # رفع الصور (صفحة التعديل)
 # ---------------------------------------------------------
@@ -22,6 +24,9 @@ LIST_PAGE_URL_FRAGMENT = "/admin/item/list"
 # "idle" فعلياً بشبكتها، وهذا كان يسبب تعليق طويل بصمت بدون أي خطأ واضح.
 GOTO_TIMEOUT_MS = 20000
 
+# مهلة انتظار ظهور حقول صور المعرض (تُبنى بجافاسكربت بعد تحميل الصفحة).
+GALLERY_READY_TIMEOUT_MS = 8000
+
 
 class UploadResult:
     def __init__(self, success, message, images_uploaded=0):
@@ -35,109 +40,39 @@ class UploadResult:
 
 
 def upload_main_image(page, image_path, logger=None):
-    """يرفع الصورة الرئيسية/المصغّرة عبر الحقل الحقيقي #customFileEg1."""
+    """
+    يرفع الصورة الرئيسية/المصغّرة عبر الحقل الحقيقي #customFileEg1، **ويتحقق** أن
+    الحقل استقبل الملف فعلاً (files.length > 0) بدل افتراض ذلك.
+    سابقاً كانت الدالة ترفع بلا تحقق، وكان المستدعي يَعُدّها صورةً مرفوعة دائماً
+    (`1 + عدد صور المعرض`) - فلو لم يستقبلها الحقل لظهر العدد أكبر من الواقع.
+    يرجّع True لو وصلت الصورة للحقل فعلاً.
+    """
     if logger:
         logger.info("رفع الصورة الرئيسية: %s", image_path)
-    page.locator(MAIN_IMAGE_SELECTOR).set_input_files(image_path)
-
-
-def replace_gallery_images(page, new_image_paths, operator_name="", logger=None):
-    """
-    يمسح الصور القديمة ويرفع الجديدة بذكاء:
-    الموقع يرفض حذف كل الصور ويعرض خطأ (تحذير حذف جميع الصور).
-    عشان كذا نعد الصور القديمة، ثم نرفع الجديدة أولاً لتكون رصيد بالصفحة،
-    ثم نحذف القديمة فقط. شامل تسجيل تشخيصي عميق للمشرف يوسف.
-    """
-    
-    import os
-    import time
-    
-    is_diag = (operator_name == "يوسف")
-    diag_dir = ""
-    if is_diag:
-        diag_dir = os.path.join(os.getcwd(), "diagnostic_logs", str(int(time.time())))
-        os.makedirs(diag_dir, exist_ok=True)
+    field = page.locator(MAIN_IMAGE_SELECTOR)
+    if field.count() == 0:
         if logger:
-            logger.info("[وضع التشخيص العميق مُفعّل] سيتم حفظ لقطات الشاشة بمسار: %s", diag_dir)
-            
-    def snap(label):
-        if not is_diag: return
-        try:
-            page.screenshot(path=os.path.join(diag_dir, f"{label}.png"), full_page=True)
-            with open(os.path.join(diag_dir, f"{label}.html"), "w", encoding="utf-8") as f:
-                f.write(page.content())
-        except Exception:
-            pass
-    
-    def accept_dialog(dialog):
-        try:
-            dialog.accept()
-        except Exception:
-            pass
-            
-    page.on("dialog", accept_dialog)
-    
+            logger.error("حقل الصورة الرئيسية (%s) غير موجود بالصفحة.", MAIN_IMAGE_SELECTOR)
+        return False
+    field.set_input_files(image_path)
     try:
-        # 1. إحصاء وحفظ روابط الصور القديمة بدقة
-        snap("01_before_upload")
-        # الصور القديمة الفعالة فقط هي التي تمتلك رابط حذف يحتوي على كلمة 'remove-image'
-        old_selector = 'a.spartan_remove_row[href*="remove-image"]'
-        old_btns = page.locator(old_selector)
-        
-        old_hrefs = []
-        for i in range(old_btns.count()):
-            btn = old_btns.nth(i)
-            if btn.is_visible():
-                href = btn.get_attribute("href")
-                if href and "remove-image" in href:
-                    old_hrefs.append(href)
-                    
-        old_count = len(old_hrefs)
-        if logger and old_count > 0:
-            logger.info("تم رصد %s صورة قديمة بمعرض المنتج. سيتم استهدافها بروابطها المخصصة.", old_count)
-            
-        # 2. رفع الصور الجديدة أولاً (لكي لا يرفض الموقع حذف القديمة)
-        uploaded_count = upload_gallery_images(page, new_image_paths, logger=logger)
-        snap("02_after_upload")
-        
-        # 3. حذف الصور القديمة من خلال البحث الدقيق عن الروابط المحفوظة مسبقاً
-        if old_count > 0:
-            if logger:
-                logger.info("جاري مسح الصور القديمة (بعد تأمين الصور الجديدة)...")
-            
-            deleted_count = 0
-            for href in old_hrefs:
-                # نبحث بالتحديد عن الزر الذي يحمل هذا الرابط الحصري!
-                # هذا يضمن 100% أننا لا نقترب من أي صورة جديدة
-                exact_selector = f'a.spartan_remove_row[href="{href}"]'
-                specific_btn = page.locator(exact_selector)
-                
-                if specific_btn.count() > 0 and specific_btn.first.is_visible():
-                    try:
-                        specific_btn.first.click()
-                        deleted_count += 1
-                        page.wait_for_timeout(500)
-                        snap(f"04_deleted_image_{deleted_count}")
-                    except Exception:
-                        pass
-                else:
-                    snap(f"05_not_found_or_hidden_{deleted_count}")
-                    
-            if logger:
-                logger.info("تم مسح %s صورة قديمة بنجاح من أصل %s.", deleted_count, old_count)
-                
-        return uploaded_count
-        
-    except Exception as e:
+        return int(field.first.evaluate("el => el.files ? el.files.length : 0")) > 0
+    except Exception:
+        # تعذّر التحقق (متصفح/حقل غير متوقع) - لا نفترض الفشل ولا نفترض النجاح
+        # بصمت: نعتبرها ناجحة ونسجّل أننا لم نستطع التأكد.
         if logger:
-            logger.warning("خطأ أثناء استبدال صور المعرض: %s", e)
-        return 0
-    finally:
-        try:
-            page.remove_listener("dialog", accept_dialog)
-        except Exception:
-            pass
+            logger.warning("تعذّر التأكد من استقبال حقل الصورة الرئيسية للملف - سيُكمل الرفع.")
+        return True
 
+
+# ملاحظة: كانت هنا `replace_gallery_images()` - دالة **ميتة** (لا مستدعي لها؛ المسار
+# الفعلي بـupload_product_images يُجهض عند وجود صور قديمة قبل أن يصلها). حُذفت لأنها
+# كانت تحمل خطرين حقيقيين:
+#   1. "وضع تشخيص" مشروط باسم مشغّل مكتوب صلباً بالكود (operator_name == "يوسف").
+#   2. يكتب page.content() كاملاً + لقطات شاشة إلى os.getcwd()/diagnostic_logs -
+#      أي HTML كامل للوحة إدارة المتجر ومعه توكن CSRF بنص صريح على القرص
+#      (تأكّدت فعلياً: `_token" value="..."` موجود داخل ملف محفوظ)، بلا أي تنظيف.
+# المجلد مُستثنى من git، لكن الملفات تبقى على جهاز المصممة بلا حد زمني.
 
 def upload_gallery_images(page, image_paths, logger=None):
     """
@@ -273,8 +208,8 @@ def upload_product_images(page, edit_url, main_image_path, gallery_image_paths, 
                     # الفشل هنا ليس خطأ شبكة، بل عدم مطابقة صريحة للهوية - لا نعيد المحاولة فيه.
                     return UploadResult(False, f"فشل التحقق: معرّف المنتج المحلي '{product_id}' غير مطابق للعلامات (Tags) في صفحة المتجر.", 0)
 
-            # 1) رفع الصورة الرئيسية الجديدة
-            upload_main_image(page, main_image_path, logger=logger)
+            # 1) رفع الصورة الرئيسية الجديدة (مع التحقق من استقبال الحقل لها)
+            main_uploaded = upload_main_image(page, main_image_path, logger=logger)
 
             # 2) التحقق من وجود صور قديمة بمعرض المنتج لتفادي الحذف الخاطئ
             old_selector = 'a.spartan_remove_row[href*="remove-image"]'
@@ -286,11 +221,41 @@ def upload_product_images(page, edit_url, main_image_path, gallery_image_paths, 
                 # الإلغاء فوراً بدون إعادة محاولة وإرجاع نتيجة الفشل لينتقل المنتج لمجلد الفشل
                 return UploadResult(False, "فشل الرفع: يُرجى الدخول للمتجر وحذف الصور القديمة يدوياً، يوجد صور سابقة تمنع الرفع الجديد.", 0)
 
-            # 3) رفع صور المعرض الجديدة
-            uploaded_count = 1 + upload_gallery_images(page, gallery_image_paths, logger=logger)
+            # 3) رفع صور المعرض الجديدة.
+            # ننتظر ظهور حقول المعرض أولاً: بعض الصفحات تبنيها بجافاسكربت بعد
+            # domcontentloaded، وبدون هذا الانتظار كان الرفع يبدأ وهي غير موجودة بعد.
+            if gallery_image_paths:
+                try:
+                    page.wait_for_selector(GALLERY_IMAGE_SELECTOR, state="attached", timeout=GALLERY_READY_TIMEOUT_MS)
+                except Exception:
+                    pass  # الغياب الحقيقي يُكتشف بالعدّ أدناه ويُعلَن كرفع ناقص.
 
-            if uploaded_count <= 0:
-                return UploadResult(False, "لم يتم رفع أي صور جديدة، لذلك تم إيقاف عملية الحفظ كإجراء احترازي.", 0)
+            gallery_uploaded = upload_gallery_images(page, gallery_image_paths, logger=logger)
+            uploaded_count = (1 if main_uploaded else 0) + gallery_uploaded
+            expected_count = 1 + len(gallery_image_paths)
+
+            # ── حارس الرفع الناقص ──
+            # سابقاً كان العدّ `1 + صور المعرض`، فالصورة الرئيسية تُحتسب دائماً ولو لم
+            # تُرفع، وشرط السلامة `uploaded_count <= 0` يستحيل تحققه رياضياً. النتيجة
+            # المُثبَتة: طلب 6 صور، رُفعت 1، والنتيجة "تم الرفع والحفظ بنجاح" مع ضغط
+            # "اعتماد" ونقل المجلد لـ_uploaded - أي خمس صور ضاعت بصمت.
+            # الآن: لا يُضغط "اعتماد" إطلاقاً عند النقص، فتبقى صور المنتج القديمة
+            # سليمة بالمتجر ويذهب المجلد لمراجعة يدوية.
+            if uploaded_count < expected_count:
+                missing = expected_count - uploaded_count
+                if logger:
+                    logger.error(
+                        "رفع ناقص: رُفعت %s من %s صورة (%s ناقصة). لن يُضغط 'اعتماد' - "
+                        "صور المنتج الحالية بالمتجر تبقى كما هي.",
+                        uploaded_count, expected_count, missing,
+                    )
+                # ليس خطأ شبكة عابراً - لا نعيد المحاولة حتى لا تُرفع الصور مرتين.
+                return UploadResult(
+                    False,
+                    f"رفع ناقص: رُفعت {uploaded_count} من {expected_count} صورة "
+                    f"({missing} ناقصة) - أُوقف الاعتماد كإجراء احترازي.",
+                    uploaded_count,
+                )
 
             # وضع المراجعة: وقف هنا بدون اعتماد - المستخدم يعتمد بنفسه من المتصفح
             if dry_run:
@@ -322,6 +287,48 @@ LIST_URL = "https://admin.sooqifyonline.com/admin/item/list"
 SEARCH_INPUT_SELECTOR = "#datatableSearch"
 ROW_SELECTOR = "table tbody tr"
 VIEW_EDIT_BUTTON_SELECTOR = 'a.btn.btn--primary[href*="/item/edit/"]'
+
+
+# أجزاء المسار التي تدل على أن المتجر رمانا لصفحة تسجيل الدخول.
+LOGIN_URL_FRAGMENTS = ("/login", "/auth/login", "/admin/login")
+
+
+def verify_store_session(page, logger=None):
+    """
+    يتحقق **فعلياً** أن جلسة الدخول لسوقيفاي ما زالت صالحة، بفتح صفحة القائمة ورؤية
+    ما إذا كان المتجر قد رمانا لصفحة تسجيل الدخول أو أخفى حقل البحث.
+
+    لماذا: التطبيق كان يفترض الدخول من مجرد أن مجلد البروفايل غير فارغ
+    (`os.listdir(profile_dir)`)، وهذا يصير صحيحاً بمجرد أول فتح للمتصفح حتى بلا أي
+    تسجيل دخول. فجلسة منتهية الصلاحية كانت تعني فشل **كل** المنتجات واحداً واحداً
+    ونقلها لمجلدات فشل، بدل رسالة واحدة واضحة "سجّل دخولك".
+
+    يرجّع: (صالحة؟، رسالة الخطأ)
+    """
+    try:
+        page.goto(LIST_URL, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
+    except Exception as exc:
+        return False, f"تعذّر فتح صفحة المتجر للتحقق من الجلسة: {exc}"
+
+    current_url = (page.url or "").lower()
+    if any(fragment in current_url for fragment in LOGIN_URL_FRAGMENTS):
+        return False, (
+            "جلسة الدخول لسوقيفاي منتهية - المتجر حوّلنا لصفحة تسجيل الدخول. "
+            "اضغط زر 'تسجيل الدخول' بالشريط العلوي، سجّل دخولك بالنافذة اللي تفتح، "
+            "وأغلقها، ثم أعد التشغيل."
+        )
+
+    try:
+        page.wait_for_selector(SEARCH_INPUT_SELECTOR, timeout=GOTO_TIMEOUT_MS)
+    except Exception:
+        return False, (
+            "فُتحت صفحة المتجر لكن حقل البحث غير موجود - غالباً الجلسة منتهية أو "
+            "الحساب بلا صلاحية على قائمة المنتجات. سجّل دخولك مرة ثانية وتأكد من صلاحياتك."
+        )
+
+    if logger:
+        logger.info("تم التأكد من صلاحية جلسة الدخول لسوقيفاي.")
+    return True, ""
 
 
 class SearchResult:
@@ -451,16 +458,41 @@ def process_product_folder(page, sync_client, product, operator_name, dry_run=Fa
         product_id=product.product_id, dry_run=dry_run, operator_name=operator_name, logger=logger
     )
 
-    # تسجيل المزامنة فقط بالوضع التلقائي (بدون dry_run) ولو نجح الرفع
-    if result.success and not dry_run:
-        reported = sync_client.report_upload(
-            product.style_code or product.folder_name, 
-            result.images_uploaded, 
-            operator_name, 
-            product_id=product.product_id,
-            logger=logger
+    # تسجيل وحدة العمل فقط بالوضع التلقائي (بدون dry_run).
+    # بوضع المراجعة لا نسجّل شيئاً لأن الاعتماد بيد المشغّل ولم يتأكد الحفظ بعد.
+    if not dry_run:
+        item_id = product.style_code or product.search_code or product.folder_name
+        outcome = sync_client.record_images_updated(
+            item_id,
+            result.images_uploaded,
+            operator_name,
+            # الفشل يُسجَّل محلياً أيضاً، فيُرى "ما لم يُنجَز" بدل اختفائه بنهاية التشغيل.
+            status=work_log.STATUS_DONE if result.success else work_log.STATUS_FAILED,
+            extra={
+                "product_id": product.product_id or "",
+                "folder": product.folder_name,
+                **({} if result.success else {"failure_reason": result.message}),
+            },
+            logger=logger,
         )
-        if reported and logger:
-            logger.info("تم تسجيل %s صورة بتقرير المزامنة لـ %s.", result.images_uploaded, product.style_code or product.folder_name)
+        if not result.success:
+            return result
+        if logger:
+            if outcome["recorded"] and outcome["pushed"]:
+                logger.info(
+                    "سُجّلت وحدة عمل (%s صورة) ورُفعت لخادم المزامنة لـ%s.",
+                    result.images_uploaded, item_id,
+                )
+            elif outcome["recorded"]:
+                logger.info(
+                    "سُجّلت وحدة عمل (%s صورة) محلياً لـ%s - ستُرفع بأول مصالحة كاملة.",
+                    result.images_uploaded, item_id,
+                )
+            else:
+                # لا تسجيل محلي ولا رفع = عمل لن يظهر بأي تقرير. يجب أن يُرى.
+                logger.error(
+                    "لم تُسجَّل وحدة العمل لـ%s لا محلياً ولا على الخادم - هذا العمل "
+                    "لن يظهر بالتقرير الموحّد. راجع صلاحيات مجلد الإعدادات.", item_id,
+                )
 
     return result

@@ -5,9 +5,16 @@
 # تطوير: يوسف الحمزي
 
 import logging
+import logging.handlers
 import os
 import sys
 from datetime import datetime
+
+# حد حجم ملف السجل قبل التدوير، وعدد النسخ المحفوظة.
+# بدونه كان الملف ينمو بلا حد: كل منتج يكتب عدة أسطر، وبآلاف المنتجات شهرياً يصل
+# لمئات الميغابايت على جهاز المصممة بلا أي تنظيف.
+LOG_MAX_BYTES = 5 * 1024 * 1024   # 5 ميغابايت
+LOG_BACKUP_COUNT = 3              # 4 ملفات كحد أقصى (~20MB)
 
 
 class AnsiColors:
@@ -73,7 +80,9 @@ def setup_logger(log_dir, name="sooqify_updater"):
     try:
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, "sooqify_updater.log")
-        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_path, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT, encoding="utf-8",
+        )
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
         )

@@ -234,6 +234,80 @@ const settingsModal = document.getElementById("settingsModal");
 document.getElementById("settingsBtn").addEventListener("click", () => {
     populateSettingsInputs();
     settingsModal.classList.remove("hidden");
+    refreshSyncStatus();
+});
+
+// -----------------------------------------------------
+// حالة سجل العمل والمزامنة
+// نعرض الأرقام الخام دائماً. "متطابق" لا تُكتب إلا والفارق صفر - الفشل الصامت
+// بمشروع AlphaCode كان بالضبط أن المزامنة تقول "نجحت" وثلث البيانات مفقود.
+// -----------------------------------------------------
+
+function renderSyncStatus(status) {
+    const box = document.getElementById("syncStatusBox");
+    if (!status || !status.success) {
+        box.textContent = "تعذّرت قراءة الحالة.";
+        return;
+    }
+    const lines = [`وحدات عمل محفوظة محلياً: ${status.local_units}`];
+    if (status.corrupt_local_lines > 0) {
+        lines.push(`⚠️ أسطر تالفة بالسجل: ${status.corrupt_local_lines} (وحدات عمل مفقودة)`);
+    }
+    lines.push(`آخر مصالحة كاملة: ${status.last_reconcile_at || "لم تُجرَ بعد"}`);
+    if (status.last_delta !== null && status.last_delta !== undefined) {
+        lines.push(`فارق العدد بآخر مصالحة (خادم − محلي): ${status.last_delta}`);
+    }
+    if (status.last_error) {
+        lines.push(`⚠️ آخر خطأ: ${status.last_error}`);
+    }
+    if (status.last_in_sync === true) {
+        lines.push("✅ متطابق مع الخادم.");
+    } else if (status.last_in_sync === false) {
+        lines.push("⚠️ غير متطابق — لا تعتمد التقرير كمكتمل قبل أن يصير الفارق صفراً.");
+    }
+    box.innerHTML = lines.map(line => `<div>${escapeHtml(line)}</div>`).join("");
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function refreshSyncStatus() {
+    try {
+        renderSyncStatus(await api().get_sync_status());
+    } catch (e) {
+        document.getElementById("syncStatusBox").textContent = `تعذّرت قراءة الحالة: ${e}`;
+    }
+}
+
+document.getElementById("refreshSyncStatusBtn").addEventListener("click", refreshSyncStatus);
+
+document.getElementById("reconcileSyncBtn").addEventListener("click", async () => {
+    const button = document.getElementById("reconcileSyncBtn");
+    const box = document.getElementById("syncStatusBox");
+    button.disabled = true;
+    box.textContent = "جارِ المصالحة الكاملة مع الخادم...";
+    try {
+        const result = await api().reconcile_sync();
+        if (!result.success) {
+            box.textContent = `فشلت المصالحة: ${result.error}`;
+            log(`فشلت المصالحة الكاملة: ${result.error}`, "error");
+        } else {
+            log(
+                `المصالحة: محلي ${result.local_count} · خادم ${result.remote_count} · ` +
+                `الفارق ${result.delta} · أُضيف محلياً ${result.pulled_in} · رُفع ${result.pushed}` +
+                (result.in_sync ? " · متطابق." : " · ⚠️ غير متطابق."),
+                result.in_sync ? "success" : "error"
+            );
+            await refreshSyncStatus();
+        }
+    } catch (e) {
+        box.textContent = `خطأ غير متوقع: ${e}`;
+    } finally {
+        button.disabled = false;
+    }
 });
 
 document.getElementById("closeSettingsBtn").addEventListener("click", () => {
@@ -399,6 +473,23 @@ window.onBackendEvent = function (msg) {
         setRunningState(false);
         log(`خطأ: ${payload.error}`, "error");
         runScan();
+    } else if (event === "sync_reconciled") {
+        // فارق العدد بين المحلي والبعيد يُعرض صراحةً. الفشل الصامت بمشروع AlphaCode
+        // كان بالضبط أن المزامنة تقول "نجحت" وثلث البيانات مفقود - فهنا "متطابقة"
+        // لا تُكتب إلا لو كان الفارق صفراً ولم يبقَ شيء للرفع.
+        if (!payload.success) {
+            log(`تعذّرت مزامنة سجل العمل: ${payload.error}`, "error");
+        } else if (payload.in_sync) {
+            log(`سجل العمل متطابق مع الخادم (${payload.local_count} وحدة، الفارق 0).`, "success");
+        } else {
+            log(
+                `⚠️ سجل العمل غير متطابق: محلي ${payload.local_count} · خادم ${payload.remote_count} · ` +
+                `الفارق ${payload.delta} · أُضيف محلياً ${payload.pulled_in} · رُفع ${payload.pushed} · ` +
+                `فشل رفع ${payload.push_failed} · باقٍ ${payload.remaining_to_push}. ` +
+                `لا تعتمد التقرير كمكتمل قبل أن يصير الفارق صفراً.`,
+                "error"
+            );
+        }
     } else if (event === "waiting_approval") {
         log(`⏳ بانتظار اعتمادك اليدوي لـ ${payload.folder} من المتصفح... (${payload.index}/${payload.total})`);
     } else if (event === "login_ready") {
@@ -420,8 +511,12 @@ function updateProgress(current, total) {
 }
 
 function markProductStatus(folderName, status) {
+    // مطابقة اسم المجلد الأخير بالمسار تماماً. كانت `dataset.path.includes(folderName)`
+    // وهي مطابقة جزئية: مجلد اسمه "12" يطابق أي مسار فيه "12" بأي موضع (مثل
+    // "...6-09-12\A99")، فتُلوَّن حالة منتج آخر غير الذي انتهى فعلاً.
+    const lastSegment = (path) => String(path || "").split(/[\\/]/).filter(Boolean).pop() || "";
     const row = Array.from(document.querySelectorAll(".product-row"))
-        .find(r => r.querySelector(".name")?.textContent && r.dataset.path.includes(folderName));
+        .find(r => lastSegment(r.dataset.path) === folderName);
     if (row) {
         row.classList.remove("status-success", "status-failed", "status-preview");
         row.classList.add(`status-${status}`);
